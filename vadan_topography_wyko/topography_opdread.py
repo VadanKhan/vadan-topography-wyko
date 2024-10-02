@@ -65,8 +65,10 @@ import scipy.io
 import tkinter as tk
 from tkinter import messagebox
 import struct
+from brukeropus import read_opus
+from surfalize import Surface
 
-from opdread import read_wyko_opd
+from opdread_package import read_wyko_opd
 
 
 #endregion
@@ -247,7 +249,6 @@ corwndataindex = 1
 
 # ------------------------------- processing loop ------------------------------- #
 
-
 # Loop to read and process all opd files
 for cubeind in range(len(cubeIDs)):
     waferID = waferIDs[cubeind]
@@ -268,6 +269,15 @@ for cubeind in range(len(cubeIDs)):
             opdfilename = opdfilenameformat.format(rowID, colID)
             filename = os.path.join(inputPath, f"{waferID}_CUBE_{cubeID}", f"{opdfilename}.fc.opd")
 
-            # Read opd file using the integrated function
-            pixel_array = read_wyko_opd(filename)
-            print(pixel_array)  # Display the pixel data for verification
+            # Read opd file using the surfalize package
+            try:
+                # You need to determine step_x and step_y based on your data
+                step_x = 0.001  # Example value in mm, adjust as needed
+                step_y = 0.001  # Example value in mm, adjust as needed
+
+                surface = read_wyko_opd(filename, step_x=step_x, step_y=step_y)  # Read the .opd file
+                
+                print(surface)  # Display all metadata
+ 
+            except Exception as e:
+                print(f"Error reading {filename}: {e}")
