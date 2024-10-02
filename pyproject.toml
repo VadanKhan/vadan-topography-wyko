@@ -12,6 +12,9 @@ scipy = "^1.14.1"
 matplotlib = "^3.9.2"
 scikit-image = "^0.24.0"
 pandas = "^2.2.3"
+brukeropus = "^1.1.0"
+surfalize = "^0.12.1"
+gurobipy = "^11.0.3"
 
 
 [build-system]
