@@ -9,6 +9,9 @@ def read_wyko_opd(filename):
         E = fid.read()
 
     # Convert the content to the specified encoding
-    E2 = codecs.encode(E, 'ISO-8859-1')
-        
-    return E2
+    E2 = codecs.encode(E.decode('ISO-8859-1'), 'ISO-8859-1')
+
+    # Find the first instance of the word 'Directory'
+    ind = E2.find(b'Directory')
+
+    return E2, ind
