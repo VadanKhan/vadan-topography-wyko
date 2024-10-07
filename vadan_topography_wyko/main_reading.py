@@ -261,23 +261,27 @@ for cubeind in range(len(cubeIDs)):
         opdfilenameformat = 'row{0}column{1}'
     elif machinename == 'Wyko582':
         opdfilenameformat = 'Row_{0}_Col_{1}_'
+        
+    # debug specific .opd file
+    rowID_debug = 1
+    colID_debug = 1
+    opdfilename_debug = opdfilenameformat.format(rowID_debug, colID_debug)
+    filename_debug = filename = os.path.join(inputPath, f"{waferID}_CUBE_{cubeID}", f"{opdfilename_debug}.fc.opd")
+    
+    try:
+        bytes, ind = read_wyko_opd(filename_debug)  # Read the .opd file
+        
+        print(ind)  # Display all metadata
 
-    for rowIDind in range(len(rowrange)):
-        rowID = rowrange[rowIDind]
-        for colIDind in range(len(colrange)):
-            colID = colrange[colIDind]
-            opdfilename = opdfilenameformat.format(rowID, colID)
-            filename = os.path.join(inputPath, f"{waferID}_CUBE_{cubeID}", f"{opdfilename}.fc.opd")
+    except Exception as e:
+        print(f"Error reading {filename_debug}: {e}")
 
-            # Read opd file using the surfalize package
-            try:
-                # You need to determine step_x and step_y based on your data
-                step_x = 0.001  # Example value in mm, adjust as needed
-                step_y = 0.001  # Example value in mm, adjust as needed
 
-                surface = read_wyko_opd(filename, step_x=step_x, step_y=step_y)  # Read the .opd file
-                
-                print(surface)  # Display all metadata
- 
-            except Exception as e:
-                print(f"Error reading {filename}: {e}")
+
+    # for rowIDind in range(len(rowrange)):
+    #     rowID = rowrange[rowIDind]
+    #     for colIDind in range(len(colrange)):
+    #         colID = colrange[colIDind]
+    #         opdfilename = opdfilenameformat.format(rowID, colID)
+    #         filename = os.path.join(inputPath, f"{waferID}_CUBE_{cubeID}", f"{opdfilename}.fc.opd")
+
