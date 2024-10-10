@@ -269,9 +269,9 @@ for cubeind in range(len(cubeIDs)):
     filename_debug = filename = os.path.join(inputPath, f"{waferID}_CUBE_{cubeID}", f"{opdfilename_debug}.fc.opd")
     
     try:
-        bytes, ind = read_wyko_opd(filename_debug)  # Read the .opd file
+        blocks, params = read_wyko_opd(filename_debug)  # Read the .opd file
         
-        print(ind)  # Display all metadata
+        print(params)  # Display all metadata
 
     except Exception as e:
         print(f"Error reading {filename_debug}: {e}")
