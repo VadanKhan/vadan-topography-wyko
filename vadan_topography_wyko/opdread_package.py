@@ -59,6 +59,7 @@ def read_wyko_opd(filename):
     # Read RAW_DATA
     # Calculate the starting index for reading raw data by summing the lengths of the first three blocks
     ind = 2 + BLOCKS[0]['Length'] + BLOCKS[1]['Length'] + BLOCKS[2]['Length']
+    print(ind)
 
     # Read the X and Y dimensions of the data
     Xsize = int(struct.unpack('h', E2[ind:ind+2])[0])
@@ -66,6 +67,7 @@ def read_wyko_opd(filename):
 
     # Read the number of bytes per data point
     Nbytes_data = int(struct.unpack('h', E2[ind+4:ind+6])[0])
+    # print(Nbytes_data)
     pixel_bytes = Nbytes_data
 
     # Move the index forward by 6 bytes to the start of the pixel data
@@ -84,7 +86,7 @@ def read_wyko_opd(filename):
 
     # Calculate the raw image data using the wavelength parameter
     VSIWavelength = ParametersValue['Wavelength']
-    image_raw = np.reshape(pixeldata, (Ysize, Xsize)) * VSIWavelength - np.nanmean(pixeldata) * VSIWavelength
+    image_raw = np.reshape(pixeldata, (Xsize, Ysize)) * VSIWavelength - np.nanmean(pixeldata) * VSIWavelength # NOTE THE ORDER OF XSIZE AND YSIZE, differs between matlab and python
 
     # Return the blocks, parameters, and raw image data
     return BLOCKS, ParametersValue, image_raw
