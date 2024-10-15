@@ -12,7 +12,7 @@ def read_wyko_opd(filename):
 
     # Find the first instance of the word 'Directory'
     ind = E2.find(b'Directory')
-    print(ind)
+    # print(ind)
 
     # Initialize variables
     Directorybytes = 6002
@@ -51,9 +51,40 @@ def read_wyko_opd(filename):
                 ParametersValue[param] = struct.unpack('f', raw_bytes)[0]
                 
                 # Print the block, raw bytes, and block index for debugging
-                print(f"Block for {param}: {block}")
-                print(f"Raw bytes for {param}: {list(raw_bytes)}")
-                print(f"Block index for {param}: {current_block_index}")
+                # print(f"Block for {param}: {block}")
+                # print(f"Raw bytes for {param}: {list(raw_bytes)}")
+                # print(f"Block index for {param}: {current_block_index}")
                 break
+    
+    # Read RAW_DATA
+    # Calculate the starting index for reading raw data by summing the lengths of the first three blocks
+    ind = 2 + BLOCKS[0]['Length'] + BLOCKS[1]['Length'] + BLOCKS[2]['Length']
 
-    return BLOCKS, ParametersValue
+    # Read the X and Y dimensions of the data
+    Xsize = int(struct.unpack('h', E2[ind:ind+2])[0])
+    Ysize = int(struct.unpack('h', E2[ind+2:ind+4])[0])
+
+    # Read the number of bytes per data point
+    Nbytes_data = int(struct.unpack('h', E2[ind+4:ind+6])[0])
+    pixel_bytes = Nbytes_data
+
+    # Move the index forward by 6 bytes to the start of the pixel data
+    ind += 6
+
+    # Initialize an array to hold the pixel data
+    pixeldata = np.zeros(Xsize * Ysize, dtype=np.float32)
+
+    # Read each pixel's data
+    for pid in range(Xsize * Ysize):
+        pixeldata[pid] = struct.unpack('f', E2[ind+(pid*pixel_bytes):ind+(pid*pixel_bytes)+pixel_bytes])[0]
+
+    # Find and replace invalid pixel values with NaN
+    idx = np.where(pixeldata >= 1e10)
+    pixeldata[idx] = np.nan
+
+    # Calculate the raw image data using the wavelength parameter
+    VSIWavelength = ParametersValue['Wavelength']
+    image_raw = np.reshape(pixeldata, (Ysize, Xsize)) * VSIWavelength - np.nanmean(pixeldata) * VSIWavelength
+
+    # Return the blocks, parameters, and raw image data
+    return BLOCKS, ParametersValue, image_raw
