@@ -271,10 +271,10 @@ for cubeind in range(len(cubeIDs)):
     try:
         blocks, params, image_raw = read_wyko_opd(filename_debug)  # Read the .opd file
         
-        image_raw = np.transpose(image_raw)
+        # image_raw = np.transpose(image_raw)
         
         print(params)  # Display all metadata
-        # print(image_raw)
+        print(len(image_raw))        
         
         # Process Raw Data
         Resolution = float(params['Pixel_size']) * 1000  # um
