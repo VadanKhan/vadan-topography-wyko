@@ -269,9 +269,26 @@ for cubeind in range(len(cubeIDs)):
     filename_debug = filename = os.path.join(inputPath, f"{waferID}_CUBE_{cubeID}", f"{opdfilename_debug}.fc.opd")
     
     try:
-        blocks, params = read_wyko_opd(filename_debug)  # Read the .opd file
+        blocks, params, image_raw = read_wyko_opd(filename_debug)  # Read the .opd file
+        
+        image_raw = np.transpose(image_raw)
         
         print(params)  # Display all metadata
+        # print(image_raw)
+        
+        # Process Raw Data
+        Resolution = float(params['Pixel_size']) * 1000  # um
+
+        # Plot the raw data for debugging
+        plt.figure(1, figsize=(11, 6.5))
+        plt.clf()
+        plt.imshow(image_raw, cmap='jet', aspect='equal')
+        plt.colorbar(label='Z$(\\mu m)$')
+        plt.xlabel('Column Pixel')
+        plt.ylabel('Row Pixel')
+        plt.title('Raw Data', fontsize=13, color='b')
+        plt.show()
+
 
     except Exception as e:
         print(f"Error reading {filename_debug}: {e}")
