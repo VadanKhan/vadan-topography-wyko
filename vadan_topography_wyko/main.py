@@ -65,10 +65,11 @@ import scipy.io
 import tkinter as tk
 from tkinter import messagebox
 import struct
-from brukeropus import read_opus
 from surfalize import Surface
 
 from opdread_package import read_wyko_opd
+from edge_detect import edge_detection
+from laser_orientation import estimate_rotation_and_cs
 
 
 #endregion
@@ -214,6 +215,9 @@ anomaly_threshold = 20  # Adjust this value as needed
 #endregion
 
 
+edgedetect = 3
+RctangleCS_leftedge = [[200, 450], [220, 260]]
+
 
 
 # ----------------- Typically no need to change codes below. ----------------- #
@@ -267,32 +271,47 @@ for cubeind in range(len(cubeIDs)):
     colID_debug = 1
     opdfilename_debug = opdfilenameformat.format(rowID_debug, colID_debug)
     filename_debug = filename = os.path.join(inputPath, f"{waferID}_CUBE_{cubeID}", f"{opdfilename_debug}.fc.opd")
+        
+    #region Reading Using Surfalise
+    # surface = Surface.load(filename_debug)
+    # surface.show()
+    #endregion
+    
+    # ----------------------------- reading opd files ---------------------------- #
     
     try:
         blocks, params, image_raw = read_wyko_opd(filename_debug)  # Read the .opd file
         
-        # image_raw = np.transpose(image_raw)
+        image_raw = np.transpose(image_raw)
         
-        print(params)  # Display all metadata
-        print(len(image_raw))        
+        # print(params)  # Display all metadata
+        # print(len(image_raw))        
         
         # Process Raw Data
         Resolution = float(params['Pixel_size']) * 1000  # um
 
         # Plot the raw data for debugging
-        plt.figure(1, figsize=(11, 6.5))
-        plt.clf()
-        plt.imshow(image_raw, cmap='jet', aspect='equal')
-        plt.colorbar(label='Z$(\\mu m)$')
-        plt.xlabel('Column Pixel')
-        plt.ylabel('Row Pixel')
-        plt.title('Raw Data', fontsize=13, color='b')
-        plt.show()
+        # plt.figure(1)
+        # plt.clf()
+        # plt.imshow(image_raw, cmap='jet', aspect='equal')
+        # plt.colorbar(label='Z$(\\mu m)$')
+        # plt.xlabel('Column Pixel')
+        # plt.ylabel('Row Pixel')
+        # plt.title('Raw Data', fontsize=13, color='b')
+        # plt.show()
+        
+        laser_edge = edge_detection(image_raw, edgedetect)
+        
+        leftedge_angle, center_CS = estimate_rotation_and_cs(laser_edge, Resolution, RctangleCS_leftedge, image_raw)
 
-
+        print(f"Left Edge Angle: {leftedge_angle}")
+        print(f"Center Coordinate System: {center_CS}")
+        
     except Exception as e:
         print(f"Error reading {filename_debug}: {e}")
 
+
+# ------------------------------ Edge Detection ------------------------------ #
 
 
     # for rowIDind in range(len(rowrange)):
