@@ -59,7 +59,7 @@ def read_wyko_opd(filename):
     # Read RAW_DATA
     # Calculate the starting index for reading raw data by summing the lengths of the first three blocks
     ind = 2 + BLOCKS[0]['Length'] + BLOCKS[1]['Length'] + BLOCKS[2]['Length']
-    print(ind)
+    # print(ind)
 
     # Read the X and Y dimensions of the data
     Xsize = int(struct.unpack('h', E2[ind:ind+2])[0])
