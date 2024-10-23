@@ -40,6 +40,4 @@ def edge_detection(image_raw, edgedetect):
     # plt.colorbar()
     # plt.show()
 
-    return laser_edge
-
-    return laser_edge
+    return laser_edge, image_raw_positive
