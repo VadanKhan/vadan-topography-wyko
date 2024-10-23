@@ -70,6 +70,7 @@ from surfalize import Surface
 from opdread_package import read_wyko_opd
 from edge_detect import edge_detection
 from laser_orientation import estimate_rotation_and_cs
+from flattening import level
 
 
 #endregion
@@ -278,7 +279,7 @@ for cubeind in range(len(cubeIDs)):
     #endregion
     
     # ----------------------------- reading opd files ---------------------------- #
-    
+    #region File Parsing
     try:
         blocks, params, image_raw = read_wyko_opd(filename_debug)  # Read the .opd file
         
@@ -290,7 +291,7 @@ for cubeind in range(len(cubeIDs)):
         # Process Raw Data
         Resolution = float(params['Pixel_size']) * 1000  # um
 
-        # Plot the raw data for debugging
+        # # Plot the raw data for debugging
         # plt.figure(1)
         # plt.clf()
         # plt.imshow(image_raw, cmap='jet', aspect='equal')
@@ -300,18 +301,36 @@ for cubeind in range(len(cubeIDs)):
         # plt.title('Raw Data', fontsize=13, color='b')
         # plt.show()
         
-        laser_edge = edge_detection(image_raw, edgedetect)
+    #endregion File Parsing
+        
+    # ----------------------------- image processing ----------------------------- #
+    #region Image Processing
+        
+    # ------------------------------ Edge Detection ------------------------------ #
+        laser_edge, image_raw_positive = edge_detection(image_raw, edgedetect)
+        
+    # ----------------------------- laser orientation ---------------------------- #
         
         leftedge_angle, center_CS = estimate_rotation_and_cs(laser_edge, Resolution, RctangleCS_leftedge, image_raw)
 
-        print(f"Left Edge Angle: {leftedge_angle}")
-        print(f"Center Coordinate System: {center_CS}")
+        # print(f"Left Edge Angle: {leftedge_angle}")
+        # print(f"Center Coordinate System: {center_CS}")
+        
+    # ------------------------------- plane fitting ------------------------------ #
+        
+        laserdata, theta_z_real, theta_x_real, theta_y_real = level(image_raw_positive, Resolution, center_CS, leftedge_angle)
+        
+        print(f"Theta_x (roll): {theta_x_real}")
+        print(f"Theta_y (pitch): {theta_y_real}")
+        
+    #endregion Image Processing
+    
         
     except Exception as e:
         print(f"Error reading {filename_debug}: {e}")
 
 
-# ------------------------------ Edge Detection ------------------------------ #
+
 
 
     # for rowIDind in range(len(rowrange)):

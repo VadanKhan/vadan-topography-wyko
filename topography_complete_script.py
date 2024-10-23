@@ -128,7 +128,7 @@ cube_ids = []
 #     'NVIJQ'
 # ]
 
-wafer_ids = ['NVIIH', 'NVIIL']  # Few Files Check
+wafer_ids = ['NEHZX']  # Few Files Check
 
 # # Input CUBE ID for each stamp sample.
 # cube_ids = [
@@ -143,17 +143,17 @@ wafer_ids = ['NVIIH', 'NVIIL']  # Few Files Check
 #     '167'
 # ]
 
-cube_ids = ['161', '167']  # Few Files Check
+cube_ids = ['161']  # Few Files Check
 
 # User Inputs to specify Sample information.
 
 # input folder path of Wyko data files.
 # inputPath = 'C:\\Users\\946859\\OneDrive - Seagate Technology\\Desktop\\Meeting\\Wyko'
 # inputPath = 'L:\\wyko data\\4. STST Stamp Samples'
-input_path = 'C:\\Users\\762093\\Documents'
+input_path = 'C:\\Users\\762093\\Documents\\WYKO_DATA'
 
 # Output folder path of data analysis results.
-output_path = 'C:\\Users\\762093\\Documents\\output_debug'
+output_path = 'C:\\Users\\762093\\Documents\\WYKO_DATA\\output_debug'
 
 # # Generate the output folder path dynamically using wafer_ids and cube_ids.
 # output_path = os.path.join(input_path, f"{wafer_ids[0]}_CUBE_{cube_ids[0]}", 'Outputs of Wyko45 and Wyko582 Data Analysis')
@@ -173,7 +173,7 @@ output_path = 'C:\\Users\\762093\\Documents\\output_debug'
 # ]
 
 
-design_infos = ['S1.7g', 'S1.7g']  # Few Files Check
+design_infos = ['S1.7g']  # Few Files Check
 
 # Input Wyko info for each stamp sample.
 # # If STST Wyko, set as 'Wyko582'; if NRM Wyko, set as 'Wyko45'
@@ -189,7 +189,7 @@ design_infos = ['S1.7g', 'S1.7g']  # Few Files Check
 #     'Wyko45'
 # ]
 
-machine_names = ['Wyko582', 'Wyko45']  # Few Files Check
+machine_names = ['Wyko45']  # Few Files Check
 
 # Specify Colors for plots.
 # colors = [
