@@ -70,8 +70,8 @@ from surfalize import Surface
 from opdread_package import read_wyko_opd
 from edge_detect import edge_detection
 from laser_orientation import estimate_rotation_and_cs
-from flattening import level
-
+from flattening import flatten
+from crown_extraction import extract_crown_profiles
 
 #endregion
 
@@ -222,8 +222,11 @@ RctangleCS_leftedge = [[200, 450], [220, 260]]
 
 
 # ----------------- Typically no need to change codes below. ----------------- #
-# -------------------------- inital processing steps ------------------------- #
-#region Initialize settings.
+
+# ---------------------------------------------------------------------------- #
+#                              Preprocessing Steps                             #
+# ---------------------------------------------------------------------------- #
+#region Pre-Processing Initialisation.
 
 # Check if input file name info have the same length.
 if len(waferIDs) != len(cubeIDs):
@@ -252,7 +255,9 @@ corwndataindex = 1
 
 
 
-# ------------------------------- processing loop ------------------------------- #
+# ---------------------------------------------------------------------------- #
+#                           Begin Processing of all Data                       #
+# ---------------------------------------------------------------------------- #
 
 # Loop to read and process all opd files
 for cubeind in range(len(cubeIDs)):
@@ -273,70 +278,73 @@ for cubeind in range(len(cubeIDs)):
     opdfilename_debug = opdfilenameformat.format(rowID_debug, colID_debug)
     filename_debug = filename = os.path.join(inputPath, f"{waferID}_CUBE_{cubeID}", f"{opdfilename_debug}.fc.opd")
         
-    #region Reading Using Surfalise
     # surface = Surface.load(filename_debug)
     # surface.show()
-    #endregion
     
-    # ----------------------------- reading opd files ---------------------------- #
-    #region File Parsing
-    try:
-        blocks, params, image_raw = read_wyko_opd(filename_debug)  # Read the .opd file
-        
-        image_raw = np.transpose(image_raw)
-        
-        # print(params)  # Display all metadata
-        # print(len(image_raw))        
-        
-        # Process Raw Data
-        Resolution = float(params['Pixel_size']) * 1000  # um
-
-        # # Plot the raw data for debugging
-        # plt.figure(1)
-        # plt.clf()
-        # plt.imshow(image_raw, cmap='jet', aspect='equal')
-        # plt.colorbar(label='Z$(\\mu m)$')
-        # plt.xlabel('Column Pixel')
-        # plt.ylabel('Row Pixel')
-        # plt.title('Raw Data', fontsize=13, color='b')
-        # plt.show()
-        
-    #endregion File Parsing
-        
-    # ----------------------------- image processing ----------------------------- #
-    #region Image Processing
-        
-    # ------------------------------ Edge Detection ------------------------------ #
-        laser_edge, image_raw_positive = edge_detection(image_raw, edgedetect)
-        
-    # ----------------------------- laser orientation ---------------------------- #
-        
-        leftedge_angle, center_CS = estimate_rotation_and_cs(laser_edge, Resolution, RctangleCS_leftedge, image_raw)
-
-        # print(f"Left Edge Angle: {leftedge_angle}")
-        # print(f"Center Coordinate System: {center_CS}")
-        
-    # ------------------------------- plane fitting ------------------------------ #
-        
-        laserdata, theta_z_real, theta_x_real, theta_y_real = level(image_raw_positive, Resolution, center_CS, leftedge_angle)
-        
-        print(f"Theta_x (roll): {theta_x_real}")
-        print(f"Theta_y (pitch): {theta_y_real}")
-        
-    #endregion Image Processing
-    
-        
-    except Exception as e:
-        print(f"Error reading {filename_debug}: {e}")
-
-
-
-
-
     # for rowIDind in range(len(rowrange)):
     #     rowID = rowrange[rowIDind]
     #     for colIDind in range(len(colrange)):
     #         colID = colrange[colIDind]
     #         opdfilename = opdfilenameformat.format(rowID, colID)
     #         filename = os.path.join(inputPath, f"{waferID}_CUBE_{cubeID}", f"{opdfilename}.fc.opd")
+
+    
+# ---------------------------------------------------------------------------- #
+#                              Reading .opd Files                              #
+# ---------------------------------------------------------------------------- #
+    #region File Parsing
+    blocks, params, image_raw = read_wyko_opd(filename_debug)  # Read the .opd file
+    
+    image_raw = np.transpose(image_raw)
+    
+    # print(params)  # Display all metadata
+    # print(len(image_raw))        
+    
+    # Process Raw Data
+    Resolution = float(params['Pixel_size']) * 1000  # um
+
+    # # Plot the raw data for debugging
+    # plt.figure(1)
+    # plt.clf()
+    # plt.imshow(image_raw, cmap='jet', aspect='equal')
+    # plt.colorbar(label='Z$(\\mu m)$')
+    # plt.xlabel('Column Pixel')
+    # plt.ylabel('Row Pixel')
+    # plt.title('Raw Data', fontsize=13, color='b')
+    # plt.show()
+    
+    #endregion File Parsing
+        
+# ---------------------------------------------------------------------------- #
+#                               Image Processing                               #
+# ---------------------------------------------------------------------------- #
+    #region Image Processing
+        
+    # ------------------------------ Edge Detection ------------------------------ #
+    laser_edge, image_raw_positive = edge_detection(image_raw, edgedetect)
+    
+    
+    # ----------------------------- Laser Orientation ---------------------------- #    
+    leftedge_angle, center_CS = estimate_rotation_and_cs(laser_edge, Resolution, RctangleCS_leftedge, image_raw)
+    # print(f"Left Edge Angle: {leftedge_angle}")
+    # print(f"Center Coordinate System: {center_CS}")
+    
+    
+    # ------------------------------- Plane Fitting ------------------------------ #
+    data_processed, theta_z_real, theta_x_real, theta_y_real = flatten(image_raw_positive, Resolution, center_CS, leftedge_angle)
+    # print(f"Theta_x (roll): {theta_x_real}")
+    # print(f"Theta_y (pitch): {theta_y_real}")
+    
+    
+    # ----------------------------- Crown Extraction ----------------------------- #
+    crown_profile, xcrown_profile, crown_value, xcrownP_value, xcrownN_value = extract_crown_profiles(data_processed, Resolution)
+    print(f"YCrown: {crown_value}")
+    print(f"XCrownP: {xcrownP_value}")
+    print(f"XCrownN: {xcrownN_value}")
+    
+    #endregion Image Processing
+
+
+
+
 

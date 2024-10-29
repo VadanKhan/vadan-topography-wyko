@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def level(image_raw_positive, Resolution, center_CS, leftedge_angle):
+def flatten(image_raw_positive, Resolution, center_CS, leftedge_angle):
     # Find non-NaN and non-zero points in the image
     laser_x, laser_y = np.where(~np.isnan(image_raw_positive) & (image_raw_positive != 0))
     
@@ -23,7 +23,7 @@ def level(image_raw_positive, Resolution, center_CS, leftedge_angle):
     Coefficients = np.linalg.lstsq(np.vstack([cord_laser[:, 4], cord_laser[:, 3], Const]).T, cord_laser[:, 2], rcond=None)[0]
     
     # Generate new set of coefficients for z-axis calculation with adjusted heights
-    adjusted_heights = cord_laser[:, 2] / 1000  # Convert height from nanometers to micrometers
+    adjusted_heights = cord_laser[:, 2] / 1000  # Scale heights (in nm initially) to be in same units as x and y coods (um)
     Coefficients_adjusted = np.linalg.lstsq(np.vstack([cord_laser[:, 4], cord_laser[:, 3], Const]).T, adjusted_heights, rcond=None)[0]
     
     # Calculate real angles
@@ -40,40 +40,64 @@ def level(image_raw_positive, Resolution, center_CS, leftedge_angle):
     cord_laser[:, 7] = cord_laser[:, 3] - center_CS[1]
     cord_laser[:, 8] = cord_laser[:, 4] - center_CS[0]
     
-    # Rotate scan data to vertical and leveling to positive
+    # Use Rotation Matrix to orient laser
     rotate_angle = -leftedge_angle
-    rotationM = np.array([[np.cos(np.radians(rotate_angle)), -np.sin(np.radians(rotate_angle))],
+    rotationMatrix = np.array([[np.cos(np.radians(rotate_angle)), -np.sin(np.radians(rotate_angle))],
                           [np.sin(np.radians(rotate_angle)), np.cos(np.radians(rotate_angle))]])
-    laserdata = np.dot(rotationM, cord_laser[:, [8, 7]].T).T
-    laserdata = np.hstack((laserdata, cord_laser[:, [6]]))
+    
+    # Initialize laserdata array with 6 columns
+    laserdata = np.zeros((len(cord_laser), 6))
+    
+    # Store x, y and then x coordinates in "laserdata"
+    laserdata[:, :2] = np.dot(rotationMatrix, cord_laser[:, [8, 7]].T).T
+    laserdata[:, 2] = cord_laser[:, 6]
     
     # Delete tether residuals and contamination
     dellist = np.where((laserdata[:, 0] < -19) | (laserdata[:, 0] > 19))[0]
     laserdata = np.delete(laserdata, dellist, axis=0)
     
-    # Plot the leveled laser data using a scatter plot (mimicking MATLAB plot)
-    fig = plt.figure(figsize=(11, 6.5))
-    ax = fig.add_subplot(111, projection='3d')
+    # Fit plane again to processed laser data
+    Const2 = np.ones(len(laserdata[:, 2]))
+    Coefficients2 = np.linalg.lstsq(np.vstack([laserdata[:, 1], laserdata[:, 0], Const2]).T, laserdata[:, 2], rcond=None)[0]
+    Z_fit_all2 = Coefficients2[0] * laserdata[:, 1] + Coefficients2[1] * laserdata[:, 0] + Coefficients2[2]
+    laserdata[:, 3] = laserdata[:, 2] - Z_fit_all2
+    laserdata[:, 4] = laserdata[:, 3] - np.min(laserdata[:, 3])
     
-    scatter_plot = ax.scatter(laserdata[:, 0], laserdata[:, 1], laserdata[:, 2], c=laserdata[:, 2], cmap='jet', marker='.')
+    # Subtract the mean of the z heights from all data points
+    mean_z_height = np.mean(laserdata[:, 4])
+    laserdata[:, 5] = laserdata[:, 4] - mean_z_height
     
-    ax.set_xlabel('X (mm)', fontsize=12)
-    ax.set_ylabel('Y (mm)', fontsize=12)
-    ax.set_zlabel('Z (μm)', fontsize=12)
+    # Prepare data_processed with columns [x, y, z]
+    data_processed = laserdata[:, [0, 1, 5]]
     
-    ax.set_title('Positive-Leveled Laser', fontsize=13, color='b')
+    # Flip the sign of the second column (y)
+    data_processed[:, 1] *= -1
     
-    fig.colorbar(scatter_plot, ax=ax, label='Z (μm)')
+    # Convert data_processed to a numpy array
+    data_processed = np.array(data_processed)
     
-    ax.view_init(elev=90., azim=0)
+    # # DEBUG: Plot the leveled laser data using a scatter plot (mimicking MATLAB plot)
+    # fig = plt.figure(figsize=(11, 6.5))
+    # ax = fig.add_subplot(111, projection='3d')
     
-    # Set the aspect ratio to be equal
-    ax.set_box_aspect([np.ptp(laserdata[:, 0]), np.ptp(laserdata[:, 1]), np.ptp(laserdata[:, 2])])  # Aspect ratio is 1:1:1
+    # scatter_plot = ax.scatter(data_processed[:, 0], data_processed[:, 1], data_processed[:, 2], c=data_processed[:, 2], cmap='jet', marker='.')
     
-    plt.show()
-
+    # ax.set_xlabel('X (μm)', fontsize=12)
+    # ax.set_ylabel('Y (μm)', fontsize=12)
+    # ax.set_zlabel('Z (nm)', fontsize=12)
     
-    return laserdata, theta_z_real, theta_x_real, theta_y_real
+    # ax.set_title('Positive-Leveled Laser', fontsize=13, color='b')
+    
+    # fig.colorbar(scatter_plot, ax=ax, label='Z (nm)')
+    
+    # ax.view_init(elev=90., azim=0)
+    
+    # # Set the aspect ratio to be equal
+    # ax.set_box_aspect([np.ptp(data_processed[:, 0]), np.ptp(data_processed[:, 1]), np.ptp(data_processed[:, 2])])  # Aspect ratio is 1:1:1
+    
+    # plt.show()
+    
+    return data_processed, theta_z_real, theta_x_real, theta_y_real
 
 # Example usage
 # laserdata, theta_z_real, theta_x_real, theta_y_real = level(image_raw_positive, Resolution, center_CS, leftedge_angle)
