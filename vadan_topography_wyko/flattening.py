@@ -76,26 +76,25 @@ def flatten(image_raw_positive, Resolution, center_CS, leftedge_angle):
     # Convert data_processed to a numpy array
     data_processed = np.array(data_processed)
     
-    # # DEBUG: Plot the leveled laser data using a scatter plot (mimicking MATLAB plot)
-    # fig = plt.figure(figsize=(11, 6.5))
-    # ax = fig.add_subplot(111, projection='3d')
+    # DEBUG: Plot the leveled laser data using a scatter plot (mimicking MATLAB plot)
+    fig = plt.figure(figsize=(11, 6.5))
+    ax = fig.add_subplot(111, projection='3d')
     
-    # scatter_plot = ax.scatter(data_processed[:, 0], data_processed[:, 1], data_processed[:, 2], c=data_processed[:, 2], cmap='jet', marker='.')
+    scatter_plot = ax.scatter(data_processed[:, 0], data_processed[:, 1], data_processed[:, 2], c=data_processed[:, 2], cmap='jet', marker='.')
     
-    # ax.set_xlabel('X (μm)', fontsize=12)
-    # ax.set_ylabel('Y (μm)', fontsize=12)
-    # ax.set_zlabel('Z (nm)', fontsize=12)
+    ax.set_xlabel('X (μm)', fontsize=12)
+    ax.set_ylabel('Y (μm)', fontsize=12)
+    ax.set_zlabel('Z (nm)', fontsize=12)
     
-    # ax.set_title('Positive-Leveled Laser', fontsize=13, color='b')
+    ax.set_title('Leveled Laser', fontsize=13, color='b')
     
-    # fig.colorbar(scatter_plot, ax=ax, label='Z (nm)')
+    fig.colorbar(scatter_plot, ax=ax, label='Z (nm)')
     
-    # ax.view_init(elev=90., azim=0)
+    ax.view_init(elev=90., azim=0)
     
-    # # Set the aspect ratio to be equal
-    # ax.set_box_aspect([np.ptp(data_processed[:, 0]), np.ptp(data_processed[:, 1]), np.ptp(data_processed[:, 2])])  # Aspect ratio is 1:1:1
+    # Set the aspect ratio to be equal
+    ax.set_box_aspect([np.ptp(data_processed[:, 0]), np.ptp(data_processed[:, 1]), np.ptp(data_processed[:, 2])])  # Aspect ratio is 1:1:1
     
-    # plt.show()
     
     return data_processed, theta_z_real, theta_x_real, theta_y_real
 
