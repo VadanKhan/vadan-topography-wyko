@@ -76,70 +76,54 @@ from filters import crown_delta_filter
 from filters import crown_average_filter
 
 #endregion
-
-# -------------------- USER INPUT / CONFIGURATION SECTION -------------------- #
-#region USER INPUTS
 # Close all plots, clear data in workspace and records in Command Window.
 plt.close('all')
 # Clear all variables (not directly applicable in Python, but resetting relevant variables)
-waferIDs = []
-cubeIDs = []
+datasets = []
 
-waferIDs = ['NEHZX']  # Few Files Check
 
-cubeIDs = ['161']  # Few Files Check
+# ---------------------------------------------------------------------------- #
+#                      USER INPUT / CONFIGURATION SECTION                      #
+# ---------------------------------------------------------------------------- #
+#region USER INPUTS
 
-# User Inputs to specify Sample information.
-
-# input folder path of Wyko data files.
+# ---------------- Input and Output Paths + Analysis Plot Names -------------- #
 inputPath = 'C:\\Users\\762093\\Documents\\WYKO_DATA'
+outputPath = 'C:\\Users\\762093\\Documents\\WYKO_DATA\\OUTPUTS\\output_debug'
 
-# Output folder path of data analysis results.
-output_path = 'C:\\Users\\762093\\Documents\\WYKO_DATA\\OUTPUTS\\output_debug'
+campaign_name = 'nxhpp_comparisons'
 
-design_infos = ['S1.7g',]  # Few Files Check
 
-machinenames = ['Wyko45']  # Few Files Check
-
-# Specify Colors for plots.
-# colors = [
-#     [1, 0, 0],       # Red
-#     [0, 1, 0],       # Green
-#     [0, 0, 1],       # Blue
-#     [1, 0.5, 0],     # Orange
-#     [0.5, 0, 0.5],   # Purple
-#     [0, 1, 1],       # Cyan
-#     [1, 0, 1],       # Magenta
-#     [0.5, 0.5, 0],   # Olive
-#     [0, 0.5, 0.5]    # Teal
-# ]
-
-colors = [[1, 0.5, 0], [0.5, 0, 0.5], [1, 0.5, 0], [0, 0, 1], [1, 0, 1]]  # Few Files Check
-
-colours_design_organised = [
-    [0, 1, 1],
-    [0.5, 0, 0.5],
-    [1, 0.5, 0],
-    [0.5, 0.5, 0],
-    [1, 0, 1]
+# ---------------------------- Datasets to Analyse --------------------------- #
+datasets = [
+    'NEHZX_CUBE_161',
+    'NEHZX_CUBE_167',
+    # Add more datasets as needed
 ]
+numData = len(datasets)
 
-# input the number of rows in measured laser array.
-rows = 3
 
-# input the number of columns in measured laser array.
-cols = 7
+# ------- input the number of rows and columns in measured laser array. ------- #
+rows = 1
+cols = 1
+rowrange = range(1, rows + 1)
+colrange = range(1, cols + 1)
+laserIDrange = range(1, len(rowrange) * len(colrange) + 1)
 
-# Saved Images Quality (300 for decent runtime, 1000 for images that can be presented)
+
+# -------------------------- Colours of Each Dataset ------------------------- #
+colors = [[1, 0.5, 0], [0.5, 0, 0.5], [1, 0.5, 0], [0, 0, 1], [1, 0, 1]]
+
+
+# Saved Images Quality (300 for decent runtime)
 imgqual = 300
+
 
 # Contour Plot Z limit (range = 2*zlim, measured in nm)
 zlim = 400
 
-# Option to group and color label plots based on 'design infos'
-group_by_design_info = False  # Set to true to group by design infos, false to group by waferID and cubeID
 
-
+# ------------------------------ Filter Settings ----------------------------- #
 # The "delta_threshold" will give the maximum allowed difference between adjacent 
 # heights (in nm). If above this value, the code will filter out this data point
 # as unphysical
@@ -148,46 +132,68 @@ group_by_design_info = False  # Set to true to group by design infos, false to g
 # runs an average of 60 points surrounding each point, and if the target is 
 # different above this set threshold, then it is filtered out as unphysical.
 # This should be set higher than the "delta_threshold".
+apply_delta_filter = True
+apply_average_filter = True
+
 delta_threshold = 3  # Adjust this value as needed
 anomaly_threshold = 25  # Adjust this value as needed
 window_size_input = 20 # Adjust this value as needed
 
 
-# Image Detection Parameters for Edge Detection
+# --------------- Image Detection Parameters for Edge Detection -------------- #
 edgedetect = 3 # parameter for edge detect function. only change when needed.
 RctangleCS_leftedge = [[200, 450], [220, 260]] # window for left edge detect, specify X,Y ranges.
 #endregion
+
+
+# ------- Option to group and color label plots based on 'design infos' ------ #
+group_by_design_info = False  # Set to true to group by design infos, false to group by waferID and cubeID
+
+design_infos = ['S1.7g',]  # Few Files Check
+
+colours_design_organised = [[0, 1, 1], [0.5, 0, 0.5], [1, 0.5, 0], [0.5, 0.5, 0], [1, 0, 1]]
+
+
+# --------------------------- Different Array Sizes -------------------------- #
+#  Set this to true if you want different array sizes within an analysis
+#  batch. The sizes can be set in the row_dynamic and column_dynamic vectors
+# . row_dynamic and column_dynamic ARE NOT USED IF THIS IS SET TO FALSE, ALL
+# THE ARRAY SIZES ARE PRESUMED TO FOLLOW THE INITIAL "rows" and "columns"
+# setting
+dynamic_arrays = False
+
+row_dynamic = []
+
+column_dynamic = []
+
+
+# ------------------------- Plotting Indexing Option: ROW  ------------------------- #
+# NOTE that the for loop needs to edited (for each row, for each column)
+# for this to be complete
+plot_by_column = False
+
+#endregion USER INPUTS
+
 
 # ---------------------------------------------------------------------------- #
 #                    Preprocessing Steps and Initialisation                    #
 # ---------------------------------------------------------------------------- #
 #region Pre-Processing.
 
-# Check if input file name info have the same length.
-if len(waferIDs) != len(cubeIDs):
-    raise ValueError('Number of wafers not equal to Number of cubes! Please make sure length match!')
-elif len(waferIDs) != len(design_infos):
-    raise ValueError('Number of wafers not equal to Number of designs! Please make sure length match!')
-elif len(waferIDs) != len(machinenames):
-    raise ValueError('Number of wafers not equal to Number of machinenames! Please make sure length match!')
-
 # Create output directory if it doesn't exist
-os.makedirs(output_path, exist_ok=True)
+os.makedirs(outputPath, exist_ok=True)
 
 rowrange = range(1, rows + 1)
 colrange = range(1, cols + 1)
 laserIDrange = range(1, len(rowrange) * len(colrange) + 1)
 
 # Create variables for data storage.
-data_raw = [[None for _ in range(len(cubeIDs))] for _ in range(len(laserIDrange))]  # store all raw data from opd files.
-data_processed = [[None for _ in range(len(cubeIDs))] for _ in range(len(laserIDrange))]  # store all processed data.
-data_crownprofiles = [[None for _ in range(len(cubeIDs))] for _ in range(len(laserIDrange))]  # store all longitudinal profiles.
-data_xcrownprofiles = [[None for _ in range(len(cubeIDs))] for _ in range(len(laserIDrange))]  # store all transverse profiles.
-data_crowns = np.nan * np.zeros((len(laserIDrange) * len(cubeIDs), 3))  # 1 is crown, 2,3 is xcrown.
-corwndataindex = 1
+data_raw = [[None for _ in range(numData)] for _ in range(len(laserIDrange))]  # store all raw data from opd files.
+data_processed = [[None for _ in range(numData)] for _ in range(len(laserIDrange))]  # store all processed data.
+data_crownprofiles = [[None for _ in range(numData)] for _ in range(len(laserIDrange))]  # store all longitudinal profiles.
+data_xcrownprofiles = [[None for _ in range(numData)] for _ in range(len(laserIDrange))]  # store all transverse profiles.
+data_crowns = np.nan * np.zeros((len(laserIDrange) * numData, 3))  # 1 is crown, 2,3 is xcrown.
 #endregion
-
-
 
 
 # ---------------------------------------------------------------------------- #
@@ -195,109 +201,114 @@ corwndataindex = 1
 # ---------------------------------------------------------------------------- #
 #region Iterative Loop
 # Loop to read and process all opd files
-for cubeind in range(len(cubeIDs)):
-    waferID = waferIDs[cubeind]
-    cubeID = cubeIDs[cubeind]
-    machinename = machinenames[cubeind]
-    print(f"{waferID} CUBE {cubeID} measured by {machinename} is in processing.")
 
-    # Define opd file name format based on Wyko machine.
-    if machinename == 'Wyko45':
-        opdfilenameformat = 'row{0}column{1}'
-    elif machinename == 'Wyko582':
+# ITERATE FOR EACH DATASET
+for dataset in datasets:
+    waferID, cubeID = dataset.split('_CUBE_')
+    print(f"{waferID} CUBE {cubeID} is in processing.")
+    
+    # Define the input path for the current cube
+    cubePath = os.path.join(inputPath, dataset)
+    
+    # Detect the format of the .opd file
+    test_files = [f for f in os.listdir(cubePath) if f.endswith('.fc.opd')]
+    if not test_files:
+        raise FileNotFoundError(f"No .opd files found in the directory: {cubePath}")
+    
+    # Read the first .opd file to determine the format
+    test_file_name = test_files[0]
+    if 'Row_' in test_file_name and '_Col_' in test_file_name:
         opdfilenameformat = 'Row_{0}_Col_{1}_'
-        
-    # debug specific .opd file
-    rowID_debug = 1
-    colID_debug = 1
-    opdfilename_debug = opdfilenameformat.format(rowID_debug, colID_debug)
-    filename_debug = filename = os.path.join(inputPath, f"{waferID}_CUBE_{cubeID}", f"{opdfilename_debug}.fc.opd")
-        
-    # surface = Surface.load(filename_debug)
-    # surface.show()
+    elif 'row' in test_file_name and 'column' in test_file_name:
+        opdfilenameformat = 'row{0}column{1}'
+    else:
+        raise ValueError(f"Unknown .opd file format: {test_file_name}")
     
-    # for rowIDind in range(len(rowrange)):
-    #     rowID = rowrange[rowIDind]
-    #     for colIDind in range(len(colrange)):
-    #         colID = colrange[colIDind]
-    #         opdfilename = opdfilenameformat.format(rowID, colID)
-    #         filename = os.path.join(inputPath, f"{waferID}_CUBE_{cubeID}", f"{opdfilename}.fc.opd")
-#endregion Iterative Loop
+    #endregion Iterative Loop
     
-# ---------------------------------------------------------------------------- #
-#                              Reading .opd Files                              #
-# ---------------------------------------------------------------------------- #
-    #region File Parsing
-    blocks, params, image_raw = read_wyko_opd(filename_debug)  # Read the .opd file
-    
-    image_raw = np.transpose(image_raw)
-    
-    # print(params)  # Display all metadata
-    # print(len(image_raw))        
-    
-    # Calculate Resolution
-    Resolution = float(params['Pixel_size']) * 1000  # um
+    # ITERNATE FOR ALL LASERS PER DATASET
+    for rowID in rowrange:
+        for colID in colrange:
+            opdfilename = opdfilenameformat.format(rowID, colID)
+            filename = os.path.join(cubePath, f"{opdfilename}.fc.opd")
+            
+            # surface = Surface.load(filename_debug)
+            # surface.show()
+                
+            # ---------------------------------------------------------------------------- #
+            #                              Reading .opd Files                              #
+            # ---------------------------------------------------------------------------- #
+            #region File Parsing
+            blocks, params, image_raw = read_wyko_opd(filename)  # Read the .opd file
+            
+            image_raw = np.transpose(image_raw)
+            
+            # print(params)  # Display all metadata
+            # print(len(image_raw))        
+            
+            # Calculate Resolution
+            Resolution = float(params['Pixel_size']) * 1000  # um
 
-    # # Plot the raw data for debugging
-    # plt.figure(1)
-    # plt.clf()
-    # plt.imshow(image_raw, cmap='jet', aspect='equal')
-    # plt.colorbar(label='Z$(\\mu m)$')
-    # plt.xlabel('Column Pixel')
-    # plt.ylabel('Row Pixel')
-    # plt.title('Raw Data', fontsize=13, color='b')
-    # plt.show()
-    
-    #endregion File Parsing
-        
-# ---------------------------------------------------------------------------- #
-#                               Image Processing                               #
-# ---------------------------------------------------------------------------- #
-    #region Image Processing
-        
-    # ------------------------------ Edge Detection ------------------------------ #
-    laser_edge, image_raw_positive = edge_detection(image_raw, edgedetect)
-    
-    
-    # ----------------------------- Laser Orientation ---------------------------- #    
-    leftedge_angle, center_CS = estimate_rotation_and_cs(laser_edge, Resolution, RctangleCS_leftedge, image_raw)
-    # print(f"Left Edge Angle: {leftedge_angle}")
-    # print(f"Center Coordinate System: {center_CS}")
-    
-    
-    # ------------------------------- Plane Fitting ------------------------------ #
-    data_processed, theta_z_real, theta_x_real, theta_y_real = flatten(image_raw_positive, Resolution, center_CS, leftedge_angle)
-    # print(f"Theta_x (roll): {theta_x_real}")
-    # print(f"Theta_y (pitch): {theta_y_real}")
-    #endregion Image Processing
-    
-    
-# ---------------------------------------------------------------------------- #
-#                           Crown Profile Extraction                           #
-# ---------------------------------------------------------------------------- #
-    #region Profile Extraction
-    crown_profile, xcrown_profile = extract_crown_profiles(data_processed, Resolution)
-    
-    # Apply filters to the crown and xcrown profiles  
-    partiallyfiltered_crown_profile = crown_delta_filter(crown_profile, delta_threshold)
-    partiallyfiltered_xcrown_profile = crown_delta_filter(xcrown_profile, delta_threshold)
-    filtered_crown_profile = crown_average_filter(partiallyfiltered_crown_profile, window_size=window_size_input, threshold=anomaly_threshold)
-    filtered_xcrown_profile = crown_average_filter(partiallyfiltered_xcrown_profile, window_size=window_size_input, threshold=anomaly_threshold)
+            # # Plot the raw data for debugging
+            # plt.figure(1)
+            # plt.clf()
+            # plt.imshow(image_raw, cmap='jet', aspect='equal')
+            # plt.colorbar(label='Z$(\\mu m)$')
+            # plt.xlabel('Column Pixel')
+            # plt.ylabel('Row Pixel')
+            # plt.title('Raw Data', fontsize=13, color='b')
+            # plt.show()
+            
+            #endregion File Parsing
+                
+            # ---------------------------------------------------------------------------- #
+            #                               Image Processing                               #
+            # ---------------------------------------------------------------------------- #
+            #region Image Processing
+                
+            # ------------------------------ Edge Detection ------------------------------ #
+            laser_edge, image_raw_positive = edge_detection(image_raw, edgedetect)
+            
+            
+            # ----------------------------- Laser Orientation ---------------------------- #    
+            leftedge_angle, center_CS = estimate_rotation_and_cs(laser_edge, Resolution, RctangleCS_leftedge, image_raw)
+            # print(f"Left Edge Angle: {leftedge_angle}")
+            # print(f"Center Coordinate System: {center_CS}")
+            
+            
+            # ------------------------------- Plane Fitting ------------------------------ #
+            data_processed, theta_z_real, theta_x_real, theta_y_real = flatten(image_raw_positive, Resolution, center_CS, leftedge_angle)
+            # print(f"Theta_x (roll): {theta_x_real}")
+            # print(f"Theta_y (pitch): {theta_y_real}")
+            #endregion Image Processing
+            
+            
+            # ---------------------------------------------------------------------------- #
+            #                           Crown Profile Extraction                           #
+            # ---------------------------------------------------------------------------- #
+            #region Profile Extraction
+            crown_profile, xcrown_profile = extract_crown_profiles(data_processed, Resolution)
+            
+            # Apply filters to the crown and xcrown profiles  
+            partiallyfiltered_crown_profile = crown_delta_filter(crown_profile, delta_threshold)
+            partiallyfiltered_xcrown_profile = crown_delta_filter(xcrown_profile, delta_threshold)
+            filtered_crown_profile = crown_average_filter(partiallyfiltered_crown_profile, window_size=window_size_input, threshold=anomaly_threshold)
+            filtered_xcrown_profile = crown_average_filter(partiallyfiltered_xcrown_profile, window_size=window_size_input, threshold=anomaly_threshold)
 
-    # Calculate crown_values and xcrown values
-    edgedistance = 0  # pixel numbers
-    crown_value = 0 - 0.5 * (filtered_crown_profile[edgedistance, 1] + filtered_crown_profile[-edgedistance - 1, 1])
-    
-    xcrownP_value = 0 - filtered_xcrown_profile[edgedistance, 1]
-    xcrownN_value = 0 - filtered_xcrown_profile[-edgedistance - 1, 1]
-    
-    print(f"YCrown: {crown_value}")
-    print(f"XCrownP: {xcrownP_value}")
-    print(f"XCrownN: {xcrownN_value}")
-    
-    plt.show()
-    
-    #endregion Crown Profile Extraction
+            # Calculate crown_values and xcrown values
+            edgedistance = 0  # pixel numbers
+            crown_value = 0 - 0.5 * (filtered_crown_profile[edgedistance, 1] + filtered_crown_profile[-edgedistance - 1, 1])
+            
+            xcrownP_value = 0 - filtered_xcrown_profile[edgedistance, 1]
+            xcrownN_value = 0 - filtered_xcrown_profile[-edgedistance - 1, 1]
+            
+            print(f"YCrown: {crown_value}")
+            print(f"XCrownP: {xcrownP_value}")
+            print(f"XCrownN: {xcrownN_value}")
+            
+            plt.show()
+            
+            #endregion Crown Profile Extraction
 
 
 
