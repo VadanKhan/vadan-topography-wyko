@@ -108,7 +108,6 @@ ROWS = 1
 COLS = 1
 ROWRANGE = range(1, ROWS + 1)
 COLRANGE = range(1, COLS + 1)
-LASERIDRANGE = range(1, len(ROWRANGE) * len(COLRANGE) + 1)
 
 
 # -------------------------- Colours of Each Dataset ------------------------- #
@@ -126,7 +125,6 @@ ZLIM = 400
 # Define Maps for edge and centre cubes
 EDGE_POINTS = ['166', '167', '147', '148', '185', '128', '177', '157', '158', '138', '139', '120', '205', '195', '90', '81']
 CENTRE_POINTS = ['161', '162', '163', '142', '143', '144', '123', '124', '136']
-
 
 # ------------------------------ Filter Settings ----------------------------- #
 # The "DELTA_THRESHOLD" will give the maximum allowed difference between adjacent 
@@ -169,7 +167,7 @@ DYNAMIC_ARRAYS = False
 
 ROW_DYNAMIC = []
 
-COLUMMN_DYNAMIC = []
+COLUMN_DYNAMIC = []
 
 
 # ------------------------- Plotting Indexing Option: ROW  ------------------------- #
@@ -188,13 +186,69 @@ PLOT_BY_COLUMN = False
 # Create output directory if it doesn't exist
 os.makedirs(OUTPUTPATH, exist_ok=True)
 
-# Create variables for data storage.
-data_raw = [[None for _ in range(NUMDATA)] for _ in range(len(LASERIDRANGE))]  # store all raw data from opd files.
-data_processed = [[None for _ in range(NUMDATA)] for _ in range(len(LASERIDRANGE))]  # store all processed data.
-data_crownprofiles = [[None for _ in range(NUMDATA)] for _ in range(len(LASERIDRANGE))]  # store all longitudinal profiles.
-data_xcrownprofiles = [[None for _ in range(NUMDATA)] for _ in range(len(LASERIDRANGE))]  # store all transverse profiles.
-data_crowns = np.nan * np.zeros((len(LASERIDRANGE) * NUMDATA, 3))  # 1 is crown, 2,3 is xcrown.
-#endregion
+
+# Check if the lengths of datasets and design_infos match
+if len(DATASETS) != len(DESIGN_INFOS):
+    if len(DESIGN_INFOS) < len(DATASETS):
+        DESIGN_INFOS.extend(['unspecified'] * (len(DATASETS) - len(DESIGN_INFOS)))
+    elif len(DESIGN_INFOS) > len(DATASETS):
+        DESIGN_INFOS = DESIGN_INFOS[:len(DATASETS)]
+# Verify lengths match after adjustment
+if len(DATASETS) != len(DESIGN_INFOS):
+    raise ValueError('Number of datasets not equal to number of design infos! Please make sure lengths match.')
+
+
+# ---------------------- Initialize location_labels list --------------------- #
+location_labels = []
+# Determine edge or centre for each cubeID
+for dataset in DATASETS:
+    _, cubeID = dataset.split('_CUBE_')
+    if cubeID in EDGE_POINTS:
+        location_labels.append('Edge')
+    elif cubeID in CENTRE_POINTS:
+        location_labels.append('Centre')
+    else:
+        location_labels.append('Other')  # In case the cubeID is not found in either list
+        
+        
+# ----------------------- Initialize laserIDranges list ---------------------- #
+laserIDranges = []
+# Loop through each dataset to calculate and store laserIDrange
+for dataset in DATASETS:
+    if DYNAMIC_ARRAYS:
+        index = DATASETS.index(dataset)
+        rows = ROW_DYNAMIC[index]
+        cols = COLUMN_DYNAMIC[index]
+        rowrange = range(1, rows + 1)
+        colrange = range(1, cols + 1)
+        laserIDranges.append(list(range(1, len(rowrange) * len(colrange) + 1)))
+    else:
+        # If DYNAMIC_ARRAYS is false, use a default range (adjust as needed)
+        rowrange = range(1, ROWS + 1)
+        colrange = range(1, COLS + 1)
+        laserIDranges.append(list(range(1, len(rowrange) * len(colrange) + 1)))
+
+
+# -------------------- Preallocate lists for data storage -------------------- #
+data_raw = [None] * NUMDATA
+data_processed = [None] * NUMDATA
+data_crownprofiles = [None] * NUMDATA
+data_xcrownprofiles = [None] * NUMDATA
+data_crowns = [None] * NUMDATA
+angle_matrix = [None] * NUMDATA
+# Loop through each dataset to preallocate inner lists (FOR INCREASED PROCESSING SPEED)
+for dataind in range(NUMDATA):
+    laserIDrange = laserIDranges[dataind]
+    # Preallocate inner lists
+    data_raw[dataind] = [None] * len(laserIDrange)
+    data_processed[dataind] = [None] * len(laserIDrange)
+    data_crownprofiles[dataind] = [None] * len(laserIDrange)
+    data_xcrownprofiles[dataind] = [None] * len(laserIDrange)
+    data_crowns[dataind] = np.nan * np.zeros((len(laserIDrange), 3))  # Assuming 3 columns for crown data
+    angle_matrix[dataind] = np.nan * np.zeros((len(laserIDrange), 3))  # Assuming 3 columns for theta_z, theta_x, and theta_y
+
+processedMessages = []
+#endregion Pre-Processing
 
 
 # ---------------------------------------------------------------------------- #
