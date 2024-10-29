@@ -72,6 +72,8 @@ from edge_detect import edge_detection
 from laser_orientation import estimate_rotation_and_cs
 from flattening import flatten
 from crown_extraction import extract_crown_profiles
+from filters import crown_delta_filter
+from filters import crown_average_filter
 
 #endregion
 
@@ -83,78 +85,19 @@ plt.close('all')
 waferIDs = []
 cubeIDs = []
 
-# # Input wafer ID for each stamp sample.
-# waferIDs = [
-#     'NEHZW',
-#     'NEHZX',
-#     'NEHZX',
-#     'NVI06',
-#     'NVIIG',
-#     'NVIIG',
-#     'NVIIY',
-#     'NVIJQ',
-#     'NVIJQ'
-# ]
-
 waferIDs = ['NEHZX']  # Few Files Check
-
-# # Input CUBE ID for each stamp sample.
-# cubeIDs = [
-#     '167',
-#     '161',
-#     '167',
-#     '161',
-#     '161',
-#     '167',
-#     '161',
-#     '161',
-#     '167'
-# ]
 
 cubeIDs = ['161']  # Few Files Check
 
 # User Inputs to specify Sample information.
 
 # input folder path of Wyko data files.
-# inputPath = 'C:\\Users\\946859\\OneDrive - Seagate Technology\\Desktop\\Meeting\\Wyko'
-# inputPath = 'L:\\wyko data\\4. STST Stamp Samples'
 inputPath = 'C:\\Users\\762093\\Documents\\WYKO_DATA'
 
 # Output folder path of data analysis results.
 output_path = 'C:\\Users\\762093\\Documents\\WYKO_DATA\\OUTPUTS\\output_debug'
 
-# # Generate the output folder path dynamically using waferIDs and cubeIDs.
-# output_path = os.path.join(input_path, f"{waferIDs[0]}_CUBE_{cubeIDs[0]}", 'Outputs of Wyko45 and Wyko582 Data Analysis')
-
-
-# # Input design info for each stamp sample.
-# design_infos = [
-#     'f8 tether',
-#     'f8 tether',
-#     'f8 tether',
-#     'g6 tether',
-#     'g8 tether',
-#     'g8 tether',
-#     'g8 tether',
-#     'g6 tether',
-#     'g6 tether'
-# ]
-
 design_infos = ['S1.7g',]  # Few Files Check
-
-# Input Wyko info for each stamp sample.
-# # If STST Wyko, set as 'Wyko582'; if NRM Wyko, set as 'Wyko45'
-# machinenames = [
-#     'Wyko45',
-#     'Wyko45',
-#     'Wyko45',
-#     'Wyko45',
-#     'Wyko45',
-#     'Wyko45',
-#     'Wyko45',
-#     'Wyko45',
-#     'Wyko45'
-# ]
 
 machinenames = ['Wyko45']  # Few Files Check
 
@@ -187,10 +130,6 @@ rows = 3
 # input the number of columns in measured laser array.
 cols = 7
 
-# parameter for edge detection.
-edgedetect = 0.973  # parameter for edge detect function. only change when needed.
-RctangleCS_leftedge = [[200, 450], [220, 260]]  # window for left edge detect, specify X,Y ranges.
-
 # Saved Images Quality (300 for decent runtime, 1000 for images that can be presented)
 imgqual = 300
 
@@ -200,7 +139,6 @@ zlim = 400
 # Option to group and color label plots based on 'design infos'
 group_by_design_info = False  # Set to true to group by design infos, false to group by waferID and cubeID
 
-# Define the threshold for the maximum allowed change in y-value
 
 # The "delta_threshold" will give the maximum allowed difference between adjacent 
 # heights (in nm). If above this value, the code will filter out this data point
@@ -210,23 +148,20 @@ group_by_design_info = False  # Set to true to group by design infos, false to g
 # runs an average of 60 points surrounding each point, and if the target is 
 # different above this set threshold, then it is filtered out as unphysical.
 # This should be set higher than the "delta_threshold".
+delta_threshold = 3  # Adjust this value as needed
+anomaly_threshold = 25  # Adjust this value as needed
+window_size_input = 20 # Adjust this value as needed
 
-delta_threshold = 1.5  # Adjust this value as needed
-anomaly_threshold = 20  # Adjust this value as needed
+
+# Image Detection Parameters for Edge Detection
+edgedetect = 3 # parameter for edge detect function. only change when needed.
+RctangleCS_leftedge = [[200, 450], [220, 260]] # window for left edge detect, specify X,Y ranges.
 #endregion
 
-
-edgedetect = 3
-RctangleCS_leftedge = [[200, 450], [220, 260]]
-
-
-
-# ----------------- Typically no need to change codes below. ----------------- #
-
 # ---------------------------------------------------------------------------- #
-#                              Preprocessing Steps                             #
+#                    Preprocessing Steps and Initialisation                    #
 # ---------------------------------------------------------------------------- #
-#region Pre-Processing Initialisation.
+#region Pre-Processing.
 
 # Check if input file name info have the same length.
 if len(waferIDs) != len(cubeIDs):
@@ -256,9 +191,9 @@ corwndataindex = 1
 
 
 # ---------------------------------------------------------------------------- #
-#                           Begin Processing of all Data                       #
+#                       Iterate Loop over all input Data                       #
 # ---------------------------------------------------------------------------- #
-
+#region Iterative Loop
 # Loop to read and process all opd files
 for cubeind in range(len(cubeIDs)):
     waferID = waferIDs[cubeind]
@@ -287,7 +222,7 @@ for cubeind in range(len(cubeIDs)):
     #         colID = colrange[colIDind]
     #         opdfilename = opdfilenameformat.format(rowID, colID)
     #         filename = os.path.join(inputPath, f"{waferID}_CUBE_{cubeID}", f"{opdfilename}.fc.opd")
-
+#endregion Iterative Loop
     
 # ---------------------------------------------------------------------------- #
 #                              Reading .opd Files                              #
@@ -300,7 +235,7 @@ for cubeind in range(len(cubeIDs)):
     # print(params)  # Display all metadata
     # print(len(image_raw))        
     
-    # Process Raw Data
+    # Calculate Resolution
     Resolution = float(params['Pixel_size']) * 1000  # um
 
     # # Plot the raw data for debugging
@@ -334,15 +269,35 @@ for cubeind in range(len(cubeIDs)):
     data_processed, theta_z_real, theta_x_real, theta_y_real = flatten(image_raw_positive, Resolution, center_CS, leftedge_angle)
     # print(f"Theta_x (roll): {theta_x_real}")
     # print(f"Theta_y (pitch): {theta_y_real}")
+    #endregion Image Processing
     
     
-    # ----------------------------- Crown Extraction ----------------------------- #
-    crown_profile, xcrown_profile, crown_value, xcrownP_value, xcrownN_value = extract_crown_profiles(data_processed, Resolution)
+# ---------------------------------------------------------------------------- #
+#                           Crown Profile Extraction                           #
+# ---------------------------------------------------------------------------- #
+    #region Profile Extraction
+    crown_profile, xcrown_profile = extract_crown_profiles(data_processed, Resolution)
+    
+    # Apply filters to the crown and xcrown profiles  
+    partiallyfiltered_crown_profile = crown_delta_filter(crown_profile, delta_threshold)
+    partiallyfiltered_xcrown_profile = crown_delta_filter(xcrown_profile, delta_threshold)
+    filtered_crown_profile = crown_average_filter(partiallyfiltered_crown_profile, window_size=window_size_input, threshold=anomaly_threshold)
+    filtered_xcrown_profile = crown_average_filter(partiallyfiltered_xcrown_profile, window_size=window_size_input, threshold=anomaly_threshold)
+
+    # Calculate crown_values and xcrown values
+    edgedistance = 0  # pixel numbers
+    crown_value = 0 - 0.5 * (filtered_crown_profile[edgedistance, 1] + filtered_crown_profile[-edgedistance - 1, 1])
+    
+    xcrownP_value = 0 - filtered_xcrown_profile[edgedistance, 1]
+    xcrownN_value = 0 - filtered_xcrown_profile[-edgedistance - 1, 1]
+    
     print(f"YCrown: {crown_value}")
     print(f"XCrownP: {xcrownP_value}")
     print(f"XCrownN: {xcrownN_value}")
     
-    #endregion Image Processing
+    plt.show()
+    
+    #endregion Crown Profile Extraction
 
 
 

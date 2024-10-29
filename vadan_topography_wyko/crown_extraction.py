@@ -40,33 +40,22 @@ def extract_crown_profiles(data_processed, Resolution):
         midindx = round(len(xcrown_profile) / 2)
         xcrown_profile[:, 1] -= xcrown_profile[midindx, 1]
         
-    # Calculate crown_value
-    edgedistance = 10  # pixel numbers
-    crown_value = 0 - 0.5 * (crown_profile[edgedistance, 1] + crown_profile[-edgedistance - 1, 1])
+    # # DEBUG: plot extracted profiles
+    # fig, axs = plt.subplots(1, 2, figsize=(12, 6))
     
-    # Calculate xcrown_value
-    xcrownP_value = 0 - xcrown_profile[edgedistance, 1]
-    xcrownN_value = 0 - xcrown_profile[-edgedistance - 1, 1]
+    # axs[0].plot(crown_profile[:, 0], crown_profile[:, 1], '.-')
+    # axs[0].set_title('Raw YCrown Profile')
+    # axs[0].set_xlabel('Y (um)')
+    # axs[0].set_ylabel('Z (nm)')
     
-        # Debug plot
-    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+    # axs[1].plot(xcrown_profile[:, 0], xcrown_profile[:, 1], '.-')
+    # axs[1].set_title('Raw XCrown Profile')
+    # axs[1].set_xlabel('X (um)')
+    # axs[1].set_ylabel('Z (nm)')
     
-    axs[0].plot(crown_profile[:, 0], crown_profile[:, 1], '.-')
-    axs[0].set_title('YCrown Profile')
-    axs[0].set_xlabel('Y (um)')
-    axs[0].set_ylabel('Z (nm)')
+    # plt.tight_layout()
     
-    axs[1].plot(xcrown_profile[:, 0], xcrown_profile[:, 1], '.-')
-    axs[1].set_title('XCrown Profile')
-    axs[1].set_xlabel('X (um)')
-    axs[1].set_ylabel('Z (nm)')
-    
-    plt.tight_layout()
-    plt.show()
-    
-    
-    return crown_profile, xcrown_profile, crown_value, xcrownP_value, xcrownN_value
-
+    return crown_profile, xcrown_profile
 # Example usage
 # data_processed = ... (your processed data here)
 # Resolution = ... (your resolution value here)
