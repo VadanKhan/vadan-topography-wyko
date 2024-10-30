@@ -1,22 +1,22 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def extract_crown_profiles(data_processed, Resolution):
+def extract_crown_profiles(data_processed_laser, Resolution):
     # Initialize crown_profile and xcrown_profile arrays
     crown_profile = []
     xcrown_profile = []
     
     # Extract crown_profile profile (longitudinal)
-    for i in range(len(data_processed)):
-        if (-0.5 * Resolution <= data_processed[i, 0] <= 0.5 * Resolution):
-            if not np.isnan(data_processed[i, 1]) and not np.isnan(data_processed[i, 2]):
-                crown_profile.append([data_processed[i, 1], data_processed[i, 2]])
+    for i in range(len(data_processed_laser)):
+        if (-0.5 * Resolution <= data_processed_laser[i, 0] <= 0.5 * Resolution):
+            if not np.isnan(data_processed_laser[i, 1]) and not np.isnan(data_processed_laser[i, 2]):
+                crown_profile.append([data_processed_laser[i, 1], data_processed_laser[i, 2]])
     
     # Extract xcrown_profile profile (transverse)
-    for i in range(len(data_processed)):
-        if (-1 * Resolution <= data_processed[i, 1] <= Resolution):
-            if not np.isnan(data_processed[i, 0]) and not np.isnan(data_processed[i, 2]):
-                xcrown_profile.append([data_processed[i, 0], data_processed[i, 2]])
+    for i in range(len(data_processed_laser)):
+        if (-1 * Resolution <= data_processed_laser[i, 1] <= Resolution):
+            if not np.isnan(data_processed_laser[i, 0]) and not np.isnan(data_processed_laser[i, 2]):
+                xcrown_profile.append([data_processed_laser[i, 0], data_processed_laser[i, 2]])
     
     # Convert to numpy arrays for further processing
     crown_profile = np.array(crown_profile)
@@ -57,6 +57,6 @@ def extract_crown_profiles(data_processed, Resolution):
     
     return crown_profile, xcrown_profile
 # Example usage
-# data_processed = ... (your processed data here)
+# data_processed_laser = ... (your processed data here)
 # Resolution = ... (your resolution value here)
 # crown_profile, xcrown_profile = extract_crown_profiles(data_processed, Resolution)

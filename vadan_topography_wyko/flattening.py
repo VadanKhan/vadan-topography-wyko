@@ -67,20 +67,20 @@ def flatten(image_raw_positive, Resolution, center_CS, leftedge_angle):
     mean_z_height = np.mean(laserdata[:, 4])
     laserdata[:, 5] = laserdata[:, 4] - mean_z_height
     
-    # Prepare data_processed with columns [x, y, z]
-    data_processed = laserdata[:, [0, 1, 5]]
+    # Prepare data_processed_laser with columns [x, y, z]
+    data_processed_laser = laserdata[:, [0, 1, 5]]
     
     # Flip the sign of the second column (y)
-    data_processed[:, 1] *= -1
+    data_processed_laser[:, 1] *= -1
     
-    # Convert data_processed to a numpy array
-    data_processed = np.array(data_processed)
+    # Convert data_processed_laser to a numpy array
+    data_processed_laser = np.array(data_processed_laser)
     
     # # DEBUG: Plot the leveled laser data using a scatter plot (mimicking MATLAB plot)
     # fig = plt.figure(figsize=(11, 6.5))
     # ax = fig.add_subplot(111, projection='3d')
     
-    # scatter_plot = ax.scatter(data_processed[:, 0], data_processed[:, 1], data_processed[:, 2], c=data_processed[:, 2], cmap='jet', marker='.')
+    # scatter_plot = ax.scatter(data_processed_laser[:, 0], data_processed_laser[:, 1], data_processed_laser[:, 2], c=data_processed_laser[:, 2], cmap='jet', marker='.')
     
     # ax.set_xlabel('X (μm)', fontsize=12)
     # ax.set_ylabel('Y (μm)', fontsize=12)
@@ -93,10 +93,10 @@ def flatten(image_raw_positive, Resolution, center_CS, leftedge_angle):
     # ax.view_init(elev=90., azim=0)
     
     # # Set the aspect ratio to be equal
-    # ax.set_box_aspect([np.ptp(data_processed[:, 0]), np.ptp(data_processed[:, 1]), np.ptp(data_processed[:, 2])])  # Aspect ratio is 1:1:1
+    # ax.set_box_aspect([np.ptp(data_processed_laser[:, 0]), np.ptp(data_processed_laser[:, 1]), np.ptp(data_processed_laser[:, 2])])  # Aspect ratio is 1:1:1
     
     
-    return data_processed, theta_z_real, theta_x_real, theta_y_real
+    return data_processed_laser, theta_z_real, theta_x_real, theta_y_real
 
 # Example usage
 # laserdata, theta_z_real, theta_x_real, theta_y_real = level(image_raw_positive, Resolution, center_CS, leftedge_angle)
