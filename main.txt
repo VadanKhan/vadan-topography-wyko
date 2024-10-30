@@ -378,24 +378,16 @@ for dataind, dataset in enumerate(DATASETS):
 # for dataset in DATASETS:
 #     print(f"{dataset} has been processed.")
     
-# # -------------------------- Print crown values -------------------------- #
-# print("\nCrown values for each dataset:")
-# # print(data_crowns)
-# for dataind, dataset in enumerate(DATASETS):
-#     waferID, cubeID = dataset.split('_CUBE_')
-#     print(f"\n{waferID} CUBE {cubeID}:")
-#     for laserIDind, crown_values in enumerate(data_crowns[dataind]):
-#         ycrown, xcrownP, xcrownN = crown_values
-#         print(f"  Laser {laserIDind + 1}: YCrown = {ycrown:.2f} nm, XCrownP = {xcrownP:.2f} nm, XCrownN = {xcrownN:.2f} nm")
+# -------------------------- Print crown values -------------------------- #
+print("\nCrown values for each dataset:")
+# print(data_crowns)
+for dataind, dataset in enumerate(DATASETS):
+    waferID, cubeID = dataset.split('_CUBE_')
+    print(f"\n{waferID} CUBE {cubeID}:")
+    for laserIDind, crown_values in enumerate(data_crowns[dataind]):
+        ycrown, xcrownP, xcrownN = crown_values
+        print(f"  Laser {laserIDind + 1}: YCrown = {ycrown:.2f} nm, XCrownP = {xcrownP:.2f} nm, XCrownN = {xcrownN:.2f} nm")
 
-# # -------------------------- Print crown profiles -------------------------- #
-# print("\nCrown profiles for each dataset:")
-# for dataind, dataset in enumerate(DATASETS):
-#     waferID, cubeID = dataset.split('_CUBE_')
-#     print(f"\n{waferID} CUBE {cubeID}:")
-#     for laserIDind, crown_profile in enumerate(data_crownprofiles[dataind]):
-#         print(f"  Laser {laserIDind + 1} Crown Profile:")
-#         for point in crown_profile:
-#             print(f"    {point}")
+
 
 
