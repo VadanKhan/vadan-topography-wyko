@@ -1,59 +1,6 @@
-"""
-This code is for processing Wyko data files with extension '.fc.opd'.
-The bottom surface of the laser array on uTP Stamp was measured by Wyko in
-PSI & FA mode with the recipe 'LASER_20x1x_Cheng_PSI_FA_STAMP.ini'.
-This code is capable of processing multiple Stamp samples at once,
-generating & saving plots and statistics tables fully automatically.
-In this version, the crown profiles are at the center lines in both
-longitudinal and transverse directions.
-
-This code will:
-    1. read all opd files.
-    2. process raw data to extract crown profiles and bowing.
-    3. calculate statistics per stamp sample.
-    4. auto plot analysis results.
-    5. auto save plots and statistics summary table in excel.
-
-User input required:
-    1. input and output path.
-    2. Samples information.
-    3. Plot COLORS.
-    4. specify parameters for edge detection, only change it when needed.
-
-Output files by this code:
-    1. f1: raw data plots per stamp sample.
-    2. f2: processed data plots per stamp sample.
-    3. f3: Crown and XCrown profiles per stamp sample.
-    4. f4: bowing values of Crown, XCrown_P, XCrown_N.
-    5. f5: boxplots of bowing values of Crown, XCrown_P, XCrown_N.
-    6. f6: overlayed all Crown/XCrown profiles of all samples.
-    7. f7: Stamp samples comparison by mean of bow in XCrown&Crown plane.
-    8. table in excel: Laser bowing data statistics, including mean, sigma,
-       max, min, range for all stamp samples.
-    9. mat: all selected important data saved in mat file for record or
-       further process.
-
-Note: the vector length of waferIDs, cubeIDs, designinfos, machinenames,
-COLORS should be the same, matching how many stamp samples you want to
-process together. And the sequence of information in vectors should match
-real samples. This info will be auto-applied to plots/table/file names.
-
-Multiple Stamp samples with the same array size can be processed at once.
-Each stamp sample has its own folder under 'INPUTPATH', with the name format
-of 'waferID_CUBE_cubeID', for example, 'NVIIH_CUBE_161'. Inside the folder,
-individual opd files are autosaved by Wyko, with the naming format of
-'Row_#_Col_#_.fc.opd' by STST Wyko 582, or 'row#column#.fc.opd' by NRM
-Wyko 45.
-
-1st released version: 'WykoDataProcessor_Laser_Stamps_FastAuto_PSI_v1'
-on July 25, 2024.
-Developed by Cheng Chen, Mech CAG.
-
-1st upgraded version: 'WykoDataProcessor_Laser_Stamps_VK'
-on 24/09/2024.
-Developed by Vadan Khan, R&D Physicist at STST. 
-"""
-# -------------------------- Package import section -------------------------- #
+# ---------------------------------------------------------------------------- #
+#                            Package Import Section                            #
+# ---------------------------------------------------------------------------- #
 #region IMPORTS
 import matplotlib.pyplot as plt
 import numpy as np
@@ -378,16 +325,24 @@ for dataind, dataset in enumerate(DATASETS):
 # for dataset in DATASETS:
 #     print(f"{dataset} has been processed.")
     
-# -------------------------- Print crown values -------------------------- #
-print("\nCrown values for each dataset:")
-# print(data_crowns)
-for dataind, dataset in enumerate(DATASETS):
-    waferID, cubeID = dataset.split('_CUBE_')
-    print(f"\n{waferID} CUBE {cubeID}:")
-    for laserIDind, crown_values in enumerate(data_crowns[dataind]):
-        ycrown, xcrownP, xcrownN = crown_values
-        print(f"  Laser {laserIDind + 1}: YCrown = {ycrown:.2f} nm, XCrownP = {xcrownP:.2f} nm, XCrownN = {xcrownN:.2f} nm")
+# # -------------------------- Print crown values -------------------------- #
+# print("\nCrown values for each dataset:")
+# # print(data_crowns)
+# for dataind, dataset in enumerate(DATASETS):
+#     waferID, cubeID = dataset.split('_CUBE_')
+#     print(f"\n{waferID} CUBE {cubeID}:")
+#     for laserIDind, crown_values in enumerate(data_crowns[dataind]):
+#         ycrown, xcrownP, xcrownN = crown_values
+#         print(f"  Laser {laserIDind + 1}: YCrown = {ycrown:.2f} nm, XCrownP = {xcrownP:.2f} nm, XCrownN = {xcrownN:.2f} nm")
 
-
+# # -------------------------- Print crown profiles -------------------------- #
+# print("\nCrown profiles for each dataset:")
+# for dataind, dataset in enumerate(DATASETS):
+#     waferID, cubeID = dataset.split('_CUBE_')
+#     print(f"\n{waferID} CUBE {cubeID}:")
+#     for laserIDind, crown_profile in enumerate(data_crownprofiles[dataind]):
+#         print(f"  Laser {laserIDind + 1} Crown Profile:")
+#         for point in crown_profile:
+#             print(f"    {point}")
 
 
