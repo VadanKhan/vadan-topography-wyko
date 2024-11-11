@@ -1,8 +1,10 @@
 import numpy as np
 import struct
 import codecs
+import matplotlib.pyplot as plt
 
 def read_wyko_opd(filename):
+    # print("meow")
     # Open the file in binary mode and read its content
     with open(filename, 'rb') as fid:
         E = fid.read()
@@ -87,6 +89,16 @@ def read_wyko_opd(filename):
     # Calculate the raw image data using the wavelength parameter
     VSIWavelength = ParametersValue['Wavelength']
     image_raw = np.reshape(pixeldata, (Xsize, Ysize)) * VSIWavelength - np.nanmean(pixeldata) * VSIWavelength # NOTE THE ORDER OF XSIZE AND YSIZE, differs between matlab and python
+    
+    image_raw = np.transpose(image_raw)
+
+    # # Debug plot of image_raw
+    # plt.figure()
+    # plt.imshow(image_raw, cmap='jet')
+    # plt.title('image_raw')
+    # plt.xlabel('Column Pixel')
+    # plt.ylabel('Row Pixel')
+    # plt.colorbar()
 
     # Return the blocks, parameters, and raw image data
     return BLOCKS, ParametersValue, image_raw

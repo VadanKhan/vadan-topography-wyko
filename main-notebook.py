@@ -22,6 +22,7 @@ plt.close('all')
 # Clear all variables (not directly applicable in Python, but resetting relevant variables)
 DATASETS = []
 
+
 # %%
 #                      USER INPUT / CONFIGURATION SECTION                      #
 # ---------------------------------------------------------------------------- #
