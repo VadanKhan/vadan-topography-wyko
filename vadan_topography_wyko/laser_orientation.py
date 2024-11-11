@@ -1,10 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from skimage import feature
-from scipy.stats import norm
-import os
-from opdread_package import read_wyko_opd
-from edge_detect import edge_detection
 
 def estimate_rotation_and_cs(laser_edge, Resolution, RctangleCS_leftedge, image_raw):
     # Reshape the image dimensions
@@ -20,6 +15,12 @@ def estimate_rotation_and_cs(laser_edge, Resolution, RctangleCS_leftedge, image_
     )
     left_edge = np.logical_and(laser_edge, leftedgeRectangle)
     
+    # Check if left_edge is empty
+    if not np.any(left_edge):
+        raise ValueError("left_edge is empty, cannot perform polynomial fitting. Consider Widening Left Rectange Range")
+    else:
+        print(f"length of left_edge = {len(left_edge)}")
+
     # Debug: Plot the left edge mask image data
     # plt.figure()
     # plt.imshow(left_edge, cmap='gray')
@@ -27,7 +28,6 @@ def estimate_rotation_and_cs(laser_edge, Resolution, RctangleCS_leftedge, image_
     # plt.xlabel('Column Pixel')
     # plt.ylabel('Row Pixel')
     # plt.colorbar()
-    # plt.show()
     
     left_edge_y, left_edge_x = np.where(left_edge == 1)
     x_left = np.median(left_edge_x)
