@@ -19,7 +19,8 @@ def estimate_rotation_and_cs(laser_edge, Resolution, RctangleCS_leftedge, image_
     if not np.any(left_edge):
         raise ValueError("left_edge is empty, cannot perform polynomial fitting. Consider Widening Left Rectange Range")
     else:
-        print(f"length of left_edge = {len(left_edge)}")
+        # print(f"length of left_edge = {len(left_edge)}")
+        pass
 
     # Debug: Plot the left edge mask image data
     # plt.figure()
