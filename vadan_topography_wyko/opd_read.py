@@ -88,7 +88,8 @@ def read_wyko_opd(filename):
 
     # Calculate the raw image data using the wavelength parameter
     VSIWavelength = ParametersValue['Wavelength']
-    image_raw = np.reshape(pixeldata, (Xsize, Ysize)) * VSIWavelength - np.nanmean(pixeldata) * VSIWavelength # NOTE THE ORDER OF XSIZE AND YSIZE, differs between matlab and python
+    image_raw = np.reshape(pixeldata, (Xsize, Ysize)) * VSIWavelength
+    - np.nanmean(pixeldata) * VSIWavelength # NOTE THE ORDER OF XSIZE AND YSIZE, differs between matlab and python
     
     image_raw = np.transpose(image_raw)
 
