@@ -6,10 +6,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import traceback
+import pandas as pd
 # from surfalize import Surface
 
 # Import the modules
-import vadan_topography_wyko.opd_read as opd_read
+import opd_read
 import edge_detect
 import laser_orientation
 import flattening
@@ -28,7 +29,7 @@ importlib.reload(crown_extraction)
 importlib.reload(filters)
 
 # Re-import the functions
-from vadan_topography_wyko.opd_read import read_wyko_opd
+from opd_read import read_wyko_opd
 from edge_detect import edge_detection
 from laser_orientation import estimate_rotation_and_cs
 from flattening import flatten
@@ -132,7 +133,7 @@ COLUMN_DYNAMIC = []
 # ------------------------- Plotting Indexing Option: ROW  ------------------------- #
 # NOTE that the for loop needs to edited (for each row, for each column)
 # for this to be complete
-PLOT_BY_COLUMN = False
+PLOT_BY_COLUMN = True
 
 #endregion USER INPUTS
 
@@ -349,6 +350,108 @@ for dataind, dataset in enumerate(DATASETS):
 #         print(f"  Laser {laserIDind + 1} Crown Profile:")
 #         for point in crown_profile:
 #             print(f"    {point}")
+
+# %%
+# ----------------------- Save statistics in excel file ---------------------- #
+
+def save_data_to_excel(input_path, waferID, cubeID, laserIDrange, data_crowns, angle_matrix):
+    # Create a list to hold the data
+    crown_data = []
+    for laserID in laserIDrange:
+        laserID_index = laserID - 1
+        crown_row = [
+            laserID, 
+            data_crowns[laserID_index][0], data_crowns[laserID_index][1], data_crowns[laserID_index][2],
+            angle_matrix[laserID_index][0], angle_matrix[laserID_index][1], angle_matrix[laserID_index][2], angle_matrix[laserID_index][3]
+        ]
+        crown_data.append(crown_row)
+    
+    # Define column names
+    columns = ['LaserID', 'YCrown', 'XCrown_P', 'XCrown_N', 'Theta_z', 'Roll', 'Pitch', 'Yaw']
+    
+    # Create a DataFrame
+    df = pd.DataFrame(crown_data, columns=columns)
+    
+    # Define the output file name
+    output_file = os.path.join(input_path, f"{waferID}_{cubeID}_data.xlsx")
+    
+    # Save the DataFrame to an Excel file
+    df.to_excel(output_file, index=False)
+    print(f"Data saved to {output_file}")
+
+# Save data to Excel files for each waferID-cubeID pair
+for dataind, dataset in enumerate(DATASETS):
+    waferID, cubeID = dataset.split('_CUBE_')
+    laserIDrange = laserIDranges[dataind]
+    save_data_to_excel(INPUTPATH, waferID, cubeID, laserIDrange, data_crowns[dataind], angle_matrix[dataind])
+
+# %%
+# ----------------------- Generate Laser Plotting Order ---------------------- #
+def generate_laser_plotting_order(laserIDranges, rows, cols, plot_by_column):
+    laser_plotting_order = []
+    for laserIDrange in laserIDranges:
+        if plot_by_column:
+            order = [col * rows + row for row in range(rows) for col in range(cols) if col * rows + row < len(laserIDrange)]
+        else:
+            order = list(range(len(laserIDrange)))
+        laser_plotting_order.append(order)
+    return laser_plotting_order
+
+# Generate the laser plotting order
+laser_plotting_order = generate_laser_plotting_order(laserIDranges, ROWS, COLS, PLOT_BY_COLUMN)
+# print(laser_plotting_order)
+
+# %%
+# --------------------------- RAW Colour Map Plots --------------------------- #
+def plot_raw_data(data_raw, waferID, cubeID, laserIDrange, output_path, campaign_name, rows, cols, zlim_colour, imgqual, laser_plotting_order):
+    fig, axes = plt.subplots(rows, cols, figsize=(20, 15))
+    fig.suptitle(f"{waferID} {cubeID} - RAW DATA COLOUR MAPS", fontsize=40, fontfamily='monospace', fontweight='bold', color='g', y=0.95)
+    
+    for plot_index in range(len(laserIDrange)):
+        row = plot_index // cols
+        col = plot_index % cols
+        ax = axes[row, col]
+        
+        if plot_index < len(data_raw):
+            image = data_raw[plot_index]
+            im = ax.imshow(image, cmap='jet', aspect='equal')
+            
+            # Set the title based on the laser plotting order
+            laserIDind = laser_plotting_order[plot_index]
+            ax.set_title(f"{laserIDind + 1}", fontsize=13, color='b')
+            
+            ax.set_xlabel('Pixel')
+            ax.set_ylabel('Pixel')
+            im.set_clim([-zlim_colour, zlim_colour])
+            cbar = fig.colorbar(im, ax=ax, orientation='vertical', fraction=0.046, pad=0.04)
+            cbar.set_label('Z$(nm)$', fontsize=10)
+            
+            # Set xlims and ylims to exclude empty spaces
+            non_nan_indices = np.argwhere(~np.isnan(image))
+            y_min, x_min = non_nan_indices.min(axis=0)
+            y_max, x_max = non_nan_indices.max(axis=0)
+            ax.set_xlim(x_min, x_max)
+            ax.set_ylim(y_max, y_min)  # Note: y-axis is inverted in images
+        else:
+            ax.axis('off')
+    
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    output_file = os.path.join(output_path, f"{campaign_name}_{waferID}_{cubeID}_f1_Raw_Data.png")
+    plt.savefig(output_file, dpi=imgqual)
+
+# Plot raw data for each dataset
+for dataind, dataset in enumerate(DATASETS):
+    waferID, cubeID = dataset.split('_CUBE_')
+    laserIDrange = laserIDranges[dataind]
+    
+    if DYNAMIC_ARRAYS:
+        rows = ROW_DYNAMIC[dataind]
+        cols = COLUMN_DYNAMIC[dataind]
+    else:
+        rows = ROWS
+        cols = COLS
+    
+    plot_raw_data(data_raw[dataind], waferID, cubeID, laserIDrange, OUTPUTPATH, CAMPAIGN_NAME, rows, cols, ZLIM, IMGQUAL, laser_plotting_order[dataind])
 
 # %%
 
