@@ -3,6 +3,7 @@
 # ---------------------------------------------------------------------------- #
 #region IMPORTS
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import os
 import traceback
@@ -56,9 +57,9 @@ CAMPAIGN_NAME = 'nxhpp_comparisons'
 
 # ---------------------------- DATASETS to Analyse --------------------------- #
 DATASETS = [
-    # 'ASTRO_CUBE_1',
     'QDHIE_CUBE_161',
-    # 'ASTRO_CUBE_3',
+    # '240039_CUBE_LEFT3',
+    # '240039_CUBE_LEFT4',
     # Add more DATASETS as needed
 ]
 NUMDATA = len(DATASETS)
@@ -106,7 +107,7 @@ WINDOW_SIZE_INPUT = 20 # Adjust this value as needed
 
 # --------------- Image Detection Parameters for Edge Detection -------------- #
 EDGEDETECT = 3 # parameter for edge detect function. only change when needed.
-LEFTEDGEWINDOW = [[200, 450], [120, 300]] # window for left edge detect, specify Y and X ranges respectively.
+LEFTEDGEWINDOW = [[200, 450], [150, 300]] # window for left edge detect, specify Y and X ranges respectively.
 
 
 # ------- Option to group and color label plots based on 'design infos' ------ #
@@ -125,9 +126,9 @@ COLOURS_DESIGN_ORGANISED = [[0, 1, 1], [0.5, 0, 0.5], [1, 0.5, 0], [0.5, 0.5, 0]
 # setting
 DYNAMIC_ARRAYS = False
 
-ROW_DYNAMIC = []
+ROW_DYNAMIC = [4, 2]
 
-COLUMN_DYNAMIC = []
+COLUMN_DYNAMIC = [20, 20]
 
 
 # ------------------------- Plotting Indexing Option: ROW  ------------------------- #
@@ -208,6 +209,13 @@ for dataind in range(NUMDATA):
 processedMessages = []
 #endregion Pre-Processing
 
+
+# Function to remove the offset (mean) from image_raw
+def remove_offset(image_raw):
+    mean_value = np.nanmean(image_raw)
+    image_raw_no_offset = image_raw - mean_value
+    return image_raw_no_offset
+
 # %%
 #                       MAIN PROCESSING: Iterate Processing Loop over all input Data                       #
 # ---------------------------------------------------------------------------- #
@@ -217,7 +225,7 @@ processedMessages = []
 # ITERATE FOR EACH DATASET
 for dataind, dataset in enumerate(DATASETS):
     waferID, cubeID = dataset.split('_CUBE_')
-    print(f"{waferID} CUBE {cubeID} is in processing.")
+    print(f"\n{waferID} CUBE {cubeID} is in processing.")
     
     # Define the input path for the current cube
     cubePath = os.path.join(INPUTPATH, dataset)
@@ -236,13 +244,25 @@ for dataind, dataset in enumerate(DATASETS):
     else:
         raise ValueError(f"Unknown .opd file format: {test_file_name}")
     
+    # Determine rowrange and colrange based on DYNAMIC_ARRAYS
+    if DYNAMIC_ARRAYS:
+        rows = ROW_DYNAMIC[dataind]
+        cols = COLUMN_DYNAMIC[dataind]
+        rowrange = range(1, rows + 1)
+        colrange = range(1, cols + 1)
+    else:
+        rows = ROWS
+        cols = COLS
+        rowrange = ROWRANGE
+        colrange = COLRANGE
+    
     #endregion Iterative Loop
     
     # ITERNATE FOR ALL LASERS PER DATASET
     # Iterate over all lasers per dataset using nested loops for rows and columns
-    for rowID in ROWRANGE:
-        for colID in COLRANGE:
-            laserIDind = (rowID - 1) * COLS + (colID - 1)
+    for rowID in rowrange:
+        for colID in colrange:
+            laserIDind = (rowID - 1) * cols + (colID - 1)
             print(f"Processing Laser {laserIDind + 1}: Row {rowID}, Column {colID}")
             
             # ---------------------------------------------------------------------------- #
@@ -264,7 +284,6 @@ for dataind, dataset in enumerate(DATASETS):
                     print(f"File missing: {filename}. No valid image found to copy from.")
                     continue
                        
-
             Resolution = float(params['Pixel_size']) * 1000
             
             # ---------------------------------------------------------------------------- #
@@ -284,7 +303,8 @@ for dataind, dataset in enumerate(DATASETS):
             yaw_angle = -leftedge_angle
             
             # Store raw and processed data
-            data_raw[dataind][laserIDind] = image_raw
+            image_raw_no_offset = remove_offset(image_raw)
+            data_raw[dataind][laserIDind] = image_raw_no_offset
             data_processed[dataind][laserIDind] = data_processed_laser
             angle_matrix[dataind][laserIDind] = [theta_z_real, roll_angle, pitch_angle, yaw_angle]
             
@@ -352,7 +372,7 @@ for dataind, dataset in enumerate(DATASETS):
 #             print(f"    {point}")
 
 # %%
-# ----------------------- Save statistics in excel file ---------------------- #
+# ---------------------- Save Raw Numbers in Excel File ---------------------- #
 
 def save_data_to_excel(input_path, waferID, cubeID, laserIDrange, data_crowns, angle_matrix):
     # Create a list to hold the data
@@ -387,25 +407,46 @@ for dataind, dataset in enumerate(DATASETS):
 
 # %%
 # ----------------------- Generate Laser Plotting Order ---------------------- #
-def generate_laser_plotting_order(laserIDranges, rows, cols, plot_by_column):
+def generate_laser_plotting_order(laserIDranges, row_dynamic, col_dynamic, rows, cols, plot_by_column, dynamic_arrays):
     laser_plotting_order = []
-    for laserIDrange in laserIDranges:
+    for dataind, laserIDrange in enumerate(laserIDranges):
+        order = []
+        if dynamic_arrays:
+            current_rows = row_dynamic[dataind]
+            current_cols = col_dynamic[dataind]
+        else:
+            current_rows = rows
+            current_cols = cols
+        
         if plot_by_column:
-            order = [col * rows + row for row in range(rows) for col in range(cols) if col * rows + row < len(laserIDrange)]
+            for row in range(current_rows):
+                for col in range(current_cols):
+                    laserID = col * current_rows + row
+                    if laserID < len(laserIDrange):
+                        order.append(laserID)
         else:
             order = list(range(len(laserIDrange)))
-        laser_plotting_order.append(order)
+        
+        laser_plotting_order.append(order)  # Append the order list to laser_plotting_order
     return laser_plotting_order
 
 # Generate the laser plotting order
-laser_plotting_order = generate_laser_plotting_order(laserIDranges, ROWS, COLS, PLOT_BY_COLUMN)
-# print(laser_plotting_order)
+laser_plotting_order = generate_laser_plotting_order(laserIDranges, ROW_DYNAMIC, COLUMN_DYNAMIC, ROWS, COLS, PLOT_BY_COLUMN, DYNAMIC_ARRAYS)
+
+# Print the laser plotting order for verification
+print(laser_plotting_order)
+
 
 # %%
 # --------------------------- RAW Colour Map Plots --------------------------- #
 def plot_raw_data(data_raw, waferID, cubeID, laserIDrange, output_path, campaign_name, rows, cols, zlim_colour, imgqual, laser_plotting_order):
-    fig, axes = plt.subplots(rows, cols, figsize=(20, 15))
-    fig.suptitle(f"{waferID} {cubeID} - RAW DATA COLOUR MAPS", fontsize=40, fontfamily='monospace', fontweight='bold', color='g', y=0.95)
+    # Calculate the figure size dynamically based on the number of rows and columns
+    fig_width = cols * 1  # Adjust the multiplier as needed
+    fig_height = rows * 3 # Adjust the multiplier as needed
+
+    fig, axes = plt.subplots(rows, cols, figsize=(fig_width, fig_height))
+    fig.suptitle(f"{waferID} {cubeID} - RAW DATA COLOUR MAPS", fontsize=40, 
+                 fontfamily='monospace', fontweight='bold', color='g', y=1)
     
     for plot_index in range(len(laserIDrange)):
         row = plot_index // cols
@@ -420,12 +461,16 @@ def plot_raw_data(data_raw, waferID, cubeID, laserIDrange, output_path, campaign
             laserIDind = laser_plotting_order[plot_index]
             ax.set_title(f"{laserIDind + 1}", fontsize=13, color='b')
             
-            ax.set_xlabel('Pixel')
-            ax.set_ylabel('Pixel')
-            im.set_clim([-zlim_colour, zlim_colour])
-            cbar = fig.colorbar(im, ax=ax, orientation='vertical', fraction=0.046, pad=0.04)
-            cbar.set_label('Z$(nm)$', fontsize=10)
+            # Only add axis labels to the first subplot
+            if plot_index == 0:
+                ax.set_xlabel('Pixel')
+                ax.set_ylabel('Pixel')
+            else:
+                ax.set_xticks([])
+                ax.set_yticks([])
             
+            im.set_clim([-zlim_colour, zlim_colour])
+                        
             # Set xlims and ylims to exclude empty spaces
             non_nan_indices = np.argwhere(~np.isnan(image))
             y_min, x_min = non_nan_indices.min(axis=0)
@@ -434,10 +479,15 @@ def plot_raw_data(data_raw, waferID, cubeID, laserIDrange, output_path, campaign
             ax.set_ylim(y_max, y_min)  # Note: y-axis is inverted in images
         else:
             ax.axis('off')
+            
+    # Add a single color bar on the side
+    cbar_ax = fig.add_axes([1, 0.15, 0.02, 0.7])  # Adjust the position and size as needed
+    cbar = fig.colorbar(im, cax=cbar_ax)
+    cbar.set_label('Z$(nm)$', fontsize=10)
     
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.tight_layout()
     output_file = os.path.join(output_path, f"{campaign_name}_{waferID}_{cubeID}_f1_Raw_Data.png")
-    plt.savefig(output_file, dpi=imgqual)
+    plt.savefig(output_file, dpi=imgqual, bbox_inches='tight')
 
 # Plot raw data for each dataset
 for dataind, dataset in enumerate(DATASETS):
@@ -453,7 +503,147 @@ for dataind, dataset in enumerate(DATASETS):
     
     plot_raw_data(data_raw[dataind], waferID, cubeID, laserIDrange, OUTPUTPATH, CAMPAIGN_NAME, rows, cols, ZLIM, IMGQUAL, laser_plotting_order[dataind])
 
-# %%
+# data_ind = 0
+# plot_raw_data(data_raw[dataind], waferID, cubeID, laserIDrange, OUTPUTPATH, CAMPAIGN_NAME, rows, cols, ZLIM, IMGQUAL, laser_plotting_order[dataind])
 
+
+# %%
+# --------------------------- PROCESSED Colour Map Plots --------------------------- #
+# Function to transform data_processed into a format similar to image_raw
+# Function to transform data_processed into a format similar to image_raw
+def transform_processed_data_to_image(data_processed, resolution):
+    x_min, x_max = np.min(data_processed[:, 0]), np.max(data_processed[:, 0])
+    y_min, y_max = np.min(data_processed[:, 1]), np.max(data_processed[:, 1])
+    
+    x_size = int((x_max - x_min) / resolution) + 1
+    y_size = int((y_max - y_min) / resolution) + 1
+    
+    transformed_data = np.full((x_size, y_size), np.nan)
+    for point in data_processed:
+        x, y, z = point
+        x_idx = int((x - x_min) / resolution)
+        y_idx = int((y - y_min) / resolution)
+        if 0 <= x_idx < x_size and 0 <= y_idx < y_size:
+            transformed_data[x_idx, y_idx] = z
+    return transformed_data.T
+
+# --------------------------- PROCESSED Colour Map Plots --------------------------- #
+def plot_processed_data(data_processed, waferID, cubeID, laserIDrange, output_path, campaign_name, rows, cols, zlim_colour, imgqual, laser_plotting_order, resolution):
+    # Calculate the figure size dynamically based on the number of rows and columns
+    fig_width = cols * 1  # Adjust the multiplier as needed
+    fig_height = rows * 3  # Adjust the multiplier as needed
+
+    fig, axes = plt.subplots(rows, cols, figsize=(fig_width, fig_height))
+    fig.suptitle(f"{waferID} {cubeID} - PROCESSED DATA COLOUR MAPS", fontsize=40, 
+                 fontfamily='monospace', fontweight='bold', color='g', y=1)
+    
+    for plot_index in range(len(laserIDrange)):
+        row = plot_index // cols
+        col = plot_index % cols
+        ax = axes[row, col]
+        
+        if plot_index < len(data_processed):
+            image = transform_processed_data_to_image(data_processed[plot_index], resolution=resolution)  # Transform processed data to image format
+            im = ax.imshow(image, cmap='jet', aspect='equal')  # Use the Z values for processed data
+            
+            # Set the title based on the laser plotting order
+            laserIDind = laser_plotting_order[plot_index]
+            ax.set_title(f"{laserIDind + 1}", fontsize=13, color='b')
+            
+            # Only add axis labels to the first subplot
+            if plot_index == 0:
+                ax.set_xlabel('X$(um)$')
+                ax.set_ylabel('Y$(um)$')
+            else:
+                ax.set_xticks([])
+                ax.set_yticks([])
+            
+            im.set_clim([-zlim_colour, zlim_colour])
+                        
+            # Set xlims and ylims to exclude empty spaces
+            non_nan_indices = np.argwhere(~np.isnan(image))
+            if non_nan_indices.size > 0:
+                y_min, x_min = non_nan_indices.min(axis=0)
+                y_max, x_max = non_nan_indices.max(axis=0)
+                ax.set_xlim(x_min, x_max)
+                ax.set_ylim(y_max, y_min)  # Note: y-axis is inverted in images
+            else:
+                ax.set_xlim(0, image.shape[1])
+                ax.set_ylim(0, image.shape[0])
+        else:
+            ax.axis('off')
+            
+    # Add a single color bar on the side
+    cbar_ax = fig.add_axes([1, 0.15, 0.02, 0.7])  # Adjust the position and size as needed
+    cbar = fig.colorbar(im, cax=cbar_ax)
+    cbar.set_label('Z$(nm)$', fontsize=10)
+    
+    plt.tight_layout()
+    output_file = os.path.join(output_path, f"{campaign_name}_{waferID}_{cubeID}_f2_Processed_Data.png")
+    plt.savefig(output_file, dpi=imgqual, bbox_inches='tight')
+
+# Example usage
+# Assuming data_processed is a list of arrays, each with shape (n, 3)
+# Assuming laser_plotting_order is a list of lists, each with the order of lasers for each dataset
+
+# Plot processed data for each dataset
+for dataind, dataset in enumerate(DATASETS):
+    waferID, cubeID = dataset.split('_CUBE_')
+    laserIDrange = laserIDranges[dataind]
+    
+    if DYNAMIC_ARRAYS:
+        rows = ROW_DYNAMIC[dataind]
+        cols = COLUMN_DYNAMIC[dataind]
+    else:
+        rows = ROWS
+        cols = COLS
+    
+    plot_processed_data(data_processed[dataind], waferID, cubeID, laserIDrange, OUTPUTPATH, CAMPAIGN_NAME, rows, cols, ZLIM, IMGQUAL, laser_plotting_order[dataind], resolution=1.0)
+
+# %%
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+
+# Enable interactive plots in Jupyter notebook
+%matplotlib inline
+
+# ------------------------------------ 3d plot Specific Laser ------------------------------------ #
+def plot_specific_processed_laser(data_processed, dataset, laser):
+    # Extract the processed laser data for the specified laser from the specified dataset
+    processed_laser_data = data_processed[dataset-1][laser - 1]
+    
+    # Plot the leveled laser data using a scatter plot (mimicking MATLAB plot)
+    fig = plt.figure(figsize=(11, 6.5))
+    ax = fig.add_subplot(111, projection='3d')
+    
+    scatter_plot = ax.scatter(processed_laser_data[:, 0], processed_laser_data[:, 1], processed_laser_data[:, 2], c=processed_laser_data[:, 2], cmap='jet', marker='.')
+    
+    ax.set_xlabel('X (μm)', fontsize=12)
+    ax.set_ylabel('Y (μm)', fontsize=12)
+    ax.set_zlabel('Z (nm)', fontsize=12)
+    
+    ax.set_title(f'Laser {laser} (levelled) from Dataset {dataset}', fontsize=13, color='b')
+    
+    fig.colorbar(scatter_plot, ax=ax, label='Z (nm)')
+    
+    ax.view_init(elev=90., azim=0)
+    
+    # Set the aspect ratio to be equal
+    ax.set_box_aspect([np.ptp(processed_laser_data[:, 0]), np.ptp(processed_laser_data[:, 1]), np.ptp(processed_laser_data[:, 2])])  # Aspect ratio is 1:1:1
+    
+    plt.show()
+    
+# Example usage
+# Assuming data_processed is a list of arrays, each with shape (n, 3)
+# dataset_index and laser_index should be specified based on the desired dataset and laser
+
+# Example indices (STARTING FROM 1)
+dataset_index = 1
+laser_index = 1
+
+# Call the function to plot the specific processed laser data
+plot_specific_processed_laser(data_processed, dataset_index, laser_index)
 
 
