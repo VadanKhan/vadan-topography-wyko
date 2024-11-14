@@ -20,11 +20,13 @@ def flatten(image_raw_positive, Resolution, center_CS, leftedge_angle):
     
     # Fit plane of all data points
     Const = np.ones(len(cord_laser[:, 2]))
-    Coefficients = np.linalg.lstsq(np.vstack([cord_laser[:, 4], cord_laser[:, 3], Const]).T, cord_laser[:, 2], rcond=None)[0]
+    Coefficients = np.linalg.lstsq(np.vstack([cord_laser[:, 4], cord_laser[:, 3], Const]).T, 
+                                   cord_laser[:, 2], rcond=None)[0]
     
     # Generate new set of coefficients for z-axis calculation with adjusted heights
     adjusted_heights = cord_laser[:, 2] / 1000  # Scale heights (in nm initially) to be in same units as x and y coods (um)
-    Coefficients_adjusted = np.linalg.lstsq(np.vstack([cord_laser[:, 4], cord_laser[:, 3], Const]).T, adjusted_heights, rcond=None)[0]
+    Coefficients_adjusted = np.linalg.lstsq(np.vstack([cord_laser[:, 4], cord_laser[:, 3], Const]).T,
+                                            adjusted_heights, rcond=None)[0]
     
     # Calculate real angles
     theta_z_real = np.degrees(np.arccos(1 / np.sqrt(Coefficients_adjusted[0]**2 + Coefficients_adjusted[1]**2 + 1)))
