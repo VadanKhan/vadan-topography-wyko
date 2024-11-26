@@ -7,6 +7,7 @@ import numpy as np
 import os
 import traceback
 import pandas as pd
+import seaborn as sns
 
 # from surfalize import Surface
 
@@ -17,6 +18,7 @@ import laser_orientation
 import flattening
 import crown_extraction
 import filters
+import plotting_functions
 
 # Import the importlib module
 import importlib
@@ -28,6 +30,7 @@ importlib.reload(laser_orientation)
 importlib.reload(flattening)
 importlib.reload(crown_extraction)
 importlib.reload(filters)
+importlib.reload(plotting_functions)
 
 # Re-import the functions
 from opd_read import read_wyko_opd
@@ -36,6 +39,7 @@ from laser_orientation import estimate_rotation_and_cs
 from flattening import flatten
 from crown_extraction import extract_crown_profiles
 from filters import crown_delta_filter, crown_average_filter
+from plotting_functions import remove_offset, generate_unique_colors, generate_laser_plotting_order
 
 # Define Maps for edge and centre cubes
 EDGE_POINTS = [
@@ -64,6 +68,9 @@ plt.close("all")
 # Clear all variables (not directly applicable in Python, but resetting relevant variables)
 DATASETS = []
 
+# %% [markdown]
+# # User Input
+
 # %%
 #                      USER INPUT / CONFIGURATION SECTION                      #
 # ---------------------------------------------------------------------------- #
@@ -80,8 +87,8 @@ CAMPAIGN_NAME = "pythonprototyping"
 DATASETS = [
     "QDHIE_CUBE_162",
     "QDHIE_CUBE_196",
-    # '240039_CUBE_LEFT3',
-    # '240039_CUBE_LEFT4',
+    # "240039_CUBE_LEFT3",
+    # "240039_CUBE_LEFT4",
     # Add more DATASETS as needed
 ]
 NUMDATA = len(DATASETS)
@@ -95,7 +102,7 @@ COLRANGE = range(1, COLS + 1)
 
 
 # -------------------------- Colours of Each Dataset ------------------------- #
-COLOURS = [[1, 0.5, 0], [0.5, 0, 0.5], [1, 0.5, 0], [0, 0, 1], [1, 0, 1]]
+# COLOURS = [[1, 0.5, 0], [0.5, 0, 0.5], [1, 0.5, 0], [0, 0, 1], [1, 0, 1]]
 
 
 # Saved Images Quality (300 for decent runtime)
@@ -141,7 +148,7 @@ DESIGN_INFOS = [
     "S1.7g",
 ]  # Few Files Check
 
-COLOURS_DESIGN_ORGANISED = [[0, 1, 1], [0.5, 0, 0.5], [1, 0.5, 0], [0.5, 0.5, 0], [1, 0, 1]]
+# COLOURS_DESIGN_ORGANISED = [[0, 1, 1], [0.5, 0, 0.5], [1, 0.5, 0], [0.5, 0.5, 0], [1, 0, 1]]
 
 
 # --------------------------- Different Array Sizes -------------------------- #
@@ -162,10 +169,12 @@ PLOT_BY_COLUMN = True
 
 # endregion USER INPUTS
 
+# %% [markdown]
+# # Processing and Image Analysis
+
 # %%
 #                    Preprocessing Steps and Initialisation                    #
 # ---------------------------------------------------------------------------- #
-# region Pre-Processing.
 
 # Create output directory if it doesn't exist
 os.makedirs(OUTPUTPATH, exist_ok=True)
@@ -233,15 +242,15 @@ for dataind in range(NUMDATA):
     angle_matrix[dataind] = np.full((len(laserIDrange), 4), np.nan)  # Initialize with NaNs
 
 processedMessages = []
-# endregion Pre-Processing
 
 
-# Function to remove the offset (mean) from image_raw
-def remove_offset(image_raw):
-    mean_value = np.nanmean(image_raw)
-    image_raw_no_offset = image_raw - mean_value
-    return image_raw_no_offset
+# Generate the laser plotting order
+laser_plotting_order = generate_laser_plotting_order(
+    laserIDranges, ROW_DYNAMIC, COLUMN_DYNAMIC, ROWS, COLS, PLOT_BY_COLUMN, DYNAMIC_ARRAYS
+)
 
+# Print the laser plotting order for verification
+print("Laser Plotting Order: ", laser_plotting_order)
 
 # %%
 #                       MAIN PROCESSING: Iterate Processing Loop over all input Data                       #
@@ -375,7 +384,7 @@ for dataind, dataset in enumerate(DATASETS):
             # print(f"Assigned to data_crowns[{dataind}][{laserIDind}]: YCrown = {crown_value}, XCrownP = {xcrownP_value}, XCrownN = {xcrownN_value}")
 
 # %%
-# -------------------------- Print summary messages -------------------------- #
+# -------------------------------- Initial Value Printer / Summary ------------------------------- #
 print("-------------------------- Data Processing is Completed! --------------------------")
 print("Summary of all processed Datsets:")
 for dataset in DATASETS:
@@ -473,42 +482,11 @@ for dataind, dataset in enumerate(DATASETS):
         INPUTPATH, waferID, cubeID, laserIDrange, data_crowns[dataind], angle_matrix[dataind]
     )
 
+# %% [markdown]
+# # Plots
 
-# %%
-# ----------------------- Generate Laser Plotting Order ---------------------- #
-def generate_laser_plotting_order(
-    laserIDranges, row_dynamic, col_dynamic, rows, cols, plot_by_column, dynamic_arrays
-):
-    laser_plotting_order = []
-    for dataind, laserIDrange in enumerate(laserIDranges):
-        order = []
-        if dynamic_arrays:
-            current_rows = row_dynamic[dataind]
-            current_cols = col_dynamic[dataind]
-        else:
-            current_rows = rows
-            current_cols = cols
-
-        if plot_by_column:
-            for row in range(current_rows):
-                for col in range(current_cols):
-                    laserID = col * current_rows + row
-                    if laserID < len(laserIDrange):
-                        order.append(laserID)
-        else:
-            order = list(range(len(laserIDrange)))
-
-        laser_plotting_order.append(order)  # Append the order list to laser_plotting_order
-    return laser_plotting_order
-
-
-# Generate the laser plotting order
-laser_plotting_order = generate_laser_plotting_order(
-    laserIDranges, ROW_DYNAMIC, COLUMN_DYNAMIC, ROWS, COLS, PLOT_BY_COLUMN, DYNAMIC_ARRAYS
-)
-
-# Print the laser plotting order for verification
-print(laser_plotting_order)
+# %% [markdown]
+# ### Raw Topography Plots
 
 
 # %%
@@ -610,6 +588,9 @@ for dataind, dataset in enumerate(DATASETS):
 
 # data_ind = 0
 # plot_raw_data(data_raw[dataind], waferID, cubeID, laserIDrange, OUTPUTPATH, CAMPAIGN_NAME, rows, cols, ZLIM, IMGQUAL, laser_plotting_order[dataind])
+
+# %% [markdown]
+# ### Flattened Topography Plots
 
 
 # %%
@@ -743,6 +724,9 @@ for dataind, dataset in enumerate(DATASETS):
         resolution=1.0,
     )
 
+# %% [markdown]
+# ### Single Laser Interactive 3D Plot
+
 # %%
 # ------------------------------------ 3d plot Specific Laser ------------------------------------ #
 
@@ -806,21 +790,27 @@ laser_index = 1
 # Call the function to plot the specific processed laser data
 plot_specific_processed_laser(data_processed, dataset_index, laser_index, 0.1, "QDHIE_CUBE_161")
 
+# %% [markdown]
+# ### Combined Profile Plot
+
 
 # %%
 # ---------------------------------- Combined Crown Profile Plot --------------------------------- #
+# Function to plot all crown profiles with horizontal lines and annotations in the legend for Y-Crown plots only
 def plot_all_crown_profiles(
     data_crownprofiles,
     data_xcrownprofiles,
     datasets,
     designinfos,
-    colors,
     group_by_design_info,
     output_path,
     campaign_name,
     summary_lims,
+    palette_name="Spectral",
+    y_positions=None,
+    border_colours=None,
+    annotations=None,
 ):
-
     # Extract waferIDs and cubeIDs from datasets
     waferIDs = [dataset.split("_CUBE_")[0] for dataset in datasets]
     cubeIDs = [dataset.split("_CUBE_")[1] for dataset in datasets]
@@ -833,23 +823,27 @@ def plot_all_crown_profiles(
         else [f"{waferID} {cubeID}" for waferID, cubeID in zip(waferIDs, cubeIDs)]
     )
 
+    # Generate unique colors for each profile
+    num_profiles = len(data_crownprofiles)
+    if group_by_design_info:
+        colors = generate_unique_colors(len(designinfos), palette_name)
+    else:
+        colors = generate_unique_colors(num_profiles, palette_name)
+
     fig, axes = plt.subplots(1, 2, figsize=(15, 7))
     fig.suptitle("All Crown Profiles", fontsize=16)
 
     # Plot Y-Crown Profiles
     ax1 = axes[0]
     for dataind in range(len(data_crownprofiles)):
-        xData = []
-        yData = []
         for laserIDind in range(len(data_crownprofiles[dataind])):
-            xData.extend(data_crownprofiles[dataind][laserIDind][:, 0])
-            yData.extend(data_crownprofiles[dataind][laserIDind][:, 1])
-        color = (
-            colors[unique_design_infos.index(designinfos[dataind])]
-            if group_by_design_info
-            else colors[dataind]
-        )
-        ax1.plot(xData, yData, ".", color=color)
+            crown_profile = data_crownprofiles[dataind][laserIDind]
+            color = (
+                colors[unique_design_infos.index(designinfos[dataind])]
+                if group_by_design_info
+                else colors[dataind]
+            )
+            ax1.plot(crown_profile[:, 0], crown_profile[:, 1], color=color, linewidth=2)
 
     ax1.set_xlabel("Y$(um)$")
     ax1.set_ylabel("Z$(nm)$")
@@ -861,17 +855,14 @@ def plot_all_crown_profiles(
     # Plot X-Crown Profiles
     ax2 = axes[1]
     for dataind in range(len(data_xcrownprofiles)):
-        xData = []
-        yData = []
         for laserIDind in range(len(data_xcrownprofiles[dataind])):
-            xData.extend(data_xcrownprofiles[dataind][laserIDind][:, 0])
-            yData.extend(data_xcrownprofiles[dataind][laserIDind][:, 1])
-        color = (
-            colors[unique_design_infos.index(designinfos[dataind])]
-            if group_by_design_info
-            else colors[dataind]
-        )
-        ax2.plot(xData, yData, ".", color=color)
+            xcrown_profile = data_xcrownprofiles[dataind][laserIDind]
+            color = (
+                colors[unique_design_infos.index(designinfos[dataind])]
+                if group_by_design_info
+                else colors[dataind]
+            )
+            ax2.plot(xcrown_profile[:, 0], xcrown_profile[:, 1], color=color, linewidth=2)
 
     ax2.set_xlabel("X$(um)$")
     ax2.set_ylabel("Z$(nm)$")
@@ -879,27 +870,148 @@ def plot_all_crown_profiles(
     ax2.grid(True)
     ax2.set_xlim([-20, 20])
 
-    # Add legends
-    handles = [
+    # Add dashed horizontal lines without annotations on the plot
+    if y_positions and border_colours:
+        for i in range(len(y_positions)):
+            ax1.axhline(y=y_positions[i], linestyle="--", color=border_colours[i], linewidth=1.5)
+
+    # Add legends with annotations for Y-Crown plot only
+    handles_ycrown = [
         plt.Line2D([0], [0], marker="o", color="w", markerfacecolor=color, markersize=10)
         for color in colors[: len(legendnames)]
     ]
-    ax1.legend(handles, legendnames, loc="best")
-    ax2.legend(handles, legendnames, loc="best")
+
+    # Add horizontal line annotations to the legend handles for Y-Crown plot only
+    if y_positions and border_colours and annotations:
+        for i in range(len(y_positions)):
+            handles_ycrown.append(
+                plt.Line2D([0], [0], linestyle="--", color=border_colours[i], linewidth=1.5)
+            )
+
+        legendnames_with_annotations = legendnames + annotations
+
+    # Dynamically set the number of columns in the legend for Y-Crown plot only
+    num_columns_ycrown = min(
+        4, (len(legendnames_with_annotations) + 19) // 20
+    )  # Adjust the divisor to control the number of columns
+
+    ax1.legend(
+        handles_ycrown,
+        legendnames_with_annotations,
+        loc="center left",
+        bbox_to_anchor=(1, 0.5),
+        ncol=num_columns_ycrown,
+        fontsize="small",
+    )
+
+    # Add legends without annotations for X-Crown plot
+    handles_xcrown = [
+        plt.Line2D([0], [0], marker="o", color="w", markerfacecolor=color, markersize=10)
+        for color in colors[: len(legendnames)]
+    ]
+
+    # Dynamically set the number of columns in the legend for X-Crown plot only
+    num_columns_xcrown = min(
+        4, (len(legendnames) + 19) // 20
+    )  # Adjust the divisor to control the number of columns
+
+    ax2.legend(
+        handles_xcrown,
+        legendnames,
+        loc="center left",
+        bbox_to_anchor=(1, 0.5),
+        ncol=num_columns_xcrown,
+        fontsize="small",
+    )
 
     plt.tight_layout()
     output_file = os.path.join(output_path, f"{campaign_name}_All_Crown_Profiles.png")
-    plt.savefig(output_file)
+    plt.savefig(output_file, bbox_inches="tight")
 
+
+# Example usage with horizontal lines and annotations in the legend
+y_positions = [-200, -100, 150, 210]
+border_colours = ["#FFA500", "blue", "blue", "#FFA500"]
+annotations = [
+    "Typical SOLAS F range",
+    "Typical SOLAS G range",
+    "Typical SOLAS G range",
+    "Typical SOLAS F range",
+]
 
 plot_all_crown_profiles(
     data_crownprofiles,
     data_xcrownprofiles,
     datasets=DATASETS,
     designinfos=DESIGN_INFOS,
-    colors=COLOURS,
     group_by_design_info=False,
     output_path=OUTPUTPATH,
     campaign_name=CAMPAIGN_NAME,
     summary_lims=SUMMARYLIMS,
+    palette_name="Spectral",
+    y_positions=y_positions,
+    border_colours=border_colours,
+    annotations=annotations,
 )
+
+# %% [markdown]
+# ### Individal Profile Plots per Dataset
+
+# %%
+# ------------------------------ Individal Profile Plots per Dataset ----------------------------- #
+
+
+# Function to plot individual laser profiles for a single dataset
+def plot_individual_laser_profiles_single(
+    data_crownprofiles, waferID, cubeID, output_path, campaign_name
+):
+    # Create a new figure for the dataset
+    fig, ax = plt.subplots(figsize=(15, 7))
+    fig.suptitle(f"{waferID} - {cubeID} - Individual Laser Profiles", fontsize=16)
+
+    # Generate unique colors for each laser profile
+    num_profiles = len(data_crownprofiles)
+    colors = generate_unique_colors(num_profiles, "Spectral")
+
+    # Plot crown profiles for each laser in the dataset
+    for laserIDind in range(num_profiles):
+        crown_profile = data_crownprofiles[laserIDind]
+        ax.plot(
+            crown_profile[:, 0],
+            crown_profile[:, 1],
+            label=f"{laserIDind + 1}",
+            color=colors[laserIDind],
+        )
+
+    # Add labels, title, and legend
+    ax.set_xlabel("Y$(um)$")
+    ax.set_ylabel("Z$(nm)$")
+    ax.set_title("Laser Crown Profile")
+    ax.grid(True)
+
+    # Dynamically set the number of columns in the legend
+    num_columns = min(
+        4, (num_profiles + 19) // 20
+    )  # Adjust the divisor to control the number of columns
+    ax.legend(loc="center left", bbox_to_anchor=(1, 0.5), ncol=num_columns, fontsize="small")
+
+    # Save the figure
+    output_file = os.path.join(
+        output_path, f"{campaign_name}_{waferID}_{cubeID}_Individual_Laser_Profiles.png"
+    )
+    plt.savefig(output_file, bbox_inches="tight")
+
+
+# Example usage: Iterate over each dataset and plot individual laser profiles
+for dataind in range(len(DATASETS)):
+    waferID, cubeID = DATASETS[dataind].split("_CUBE_")
+
+    plot_individual_laser_profiles_single(
+        data_crownprofiles=data_crownprofiles[dataind],
+        waferID=waferID,
+        cubeID=cubeID,
+        output_path=OUTPUTPATH,
+        campaign_name=CAMPAIGN_NAME,
+    )
+
+# %%
