@@ -10,7 +10,7 @@ def remove_offset(image_raw):
 
 
 # Function to generate unique colors using Seaborn's color palette
-def generate_unique_colors(num_colors, colour_set: str):
+def generate_unique_colors(num_colors, colour_set: str = "rainbow"):
     colors = sns.color_palette(colour_set, num_colors)
     return colors
 
