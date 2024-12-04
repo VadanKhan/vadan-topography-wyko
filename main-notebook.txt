@@ -19,7 +19,8 @@ import laser_orientation
 import flattening
 import crown_extraction
 import filters
-import shared_plotting_functions as shared_plotting_functions
+import shared_plotting_functions
+import statistics_functions
 
 # Import the importlib module
 import importlib
@@ -32,6 +33,7 @@ importlib.reload(flattening)
 importlib.reload(crown_extraction)
 importlib.reload(filters)
 importlib.reload(shared_plotting_functions)
+importlib.reload(statistics_functions)
 
 # Re-import the functions
 from opd_read import read_wyko_opd
@@ -45,9 +47,17 @@ from shared_plotting_functions import (
     generate_unique_colors,
     generate_laser_plotting_order,
 )
+from statistics_functions import (
+    calculate_r_squared,
+    IQR_filtering,
+    common_data_filter,
+    calculate_statistics_single_column,
+    stats_to_dataframe,
+    save_statistics_to_excel,
+)
 
 # Define Maps for edge and centre cubes
-EDGE_POINTS = [
+EDGE_CUBES = [
     "166",
     "167",
     "147",
@@ -65,7 +75,7 @@ EDGE_POINTS = [
     "90",
     "81",
 ]
-CENTRE_POINTS = ["161", "162", "163", "142", "143", "144", "123", "124", "136"]
+CENTRE_CUBES = ["161", "162", "163", "142", "143", "144", "123", "124", "136"]
 
 # endregion
 # Close all plots, clear data in workspace and records in Command Window.
@@ -83,26 +93,36 @@ DATASETS = []
 
 # ---------------- Input and Output Paths + Analysis Plot Names -------------- #
 INPUTPATH = "C:\\Users\\762093\\Documents\\WYKO_DATA"
-OUTPUTPATH = "C:\\Users\\762093\\Documents\\WYKO_DATA\\OUTPUTS\\output_debug"
+OUTPUTPATH = "C:\\Users\\762093\\Documents\\WYKO_DATA\\output_debug"
 
 CAMPAIGN_NAME = "pythonprototyping"
 
 
 # ---------------------------- DATASETS to Analyse --------------------------- #
 DATASETS = [
-    "QCHV3_CUBE_142",
-    "QCHV3_CUBE_143",
-    "QCHV3_CUBE_144",
-    "QCHV3_CUBE_145",
-    "QCHV3_CUBE_146",
-    "QCHV3_CUBE_147",
-    "QCHV3_CUBE_148",
+    "QCHUP_CUBE_161",
+    "QCHUP_CUBE_167",
     # "240039_CUBE_LEFT3",
     # "240039_CUBE_LEFT4",
     # Add more DATASETS as needed
 ]
 NUMDATA = len(DATASETS)
 
+# ------- Option to group and color label plots based on 'design infos' ------ #
+GROUP_BY_DESIGN_INFO = (
+    False  # Set to true to group by design infos, false to group by waferID and cubeID
+)
+
+DESIGN_INFOS = [
+    "60s RTA - G Dense",
+    "60s RTA - G Dense",
+]  # Few Files Check
+
+# ------------------------------------------ Stamp Info ------------------------------------------ #
+STAMP_IDS = [
+    240058,
+    240025,
+]
 
 # ------- input the number of ROWS and columns in measured laser array. ------- #
 ROWS = 3
@@ -149,25 +169,6 @@ LEFTEDGEWINDOW = [
 ]  # window for left edge detect, specify Y and X ranges respectively.
 
 
-# ------- Option to group and color label plots based on 'design infos' ------ #
-GROUP_BY_DESIGN_INFO = (
-    False  # Set to true to group by design infos, false to group by waferID and cubeID
-)
-
-DESIGN_INFOS = [
-    "A",
-    "B",
-    "C",
-    "D",
-    "A",
-    "B",
-    "C",
-    "D",
-]  # Few Files Check
-
-# COLOURS_DESIGN_ORGANISED = [[0, 1, 1], [0.5, 0, 0.5], [1, 0.5, 0], [0.5, 0.5, 0], [1, 0, 1]]
-
-
 # --------------------------- Different Array Sizes -------------------------- #
 #  Set this to true if you want different array sizes within an analysis
 #  batch. The sizes can be set in the row_dynamic and column_dynamic vectors
@@ -190,7 +191,7 @@ PLOT_BY_COLUMN = True
 # # Processing and Image Analysis
 
 # %%
-#                    Preprocessing Steps and Initialisation                    #
+#                             Preprocessing Steps                              #
 # ---------------------------------------------------------------------------- #
 
 # Create output directory if it doesn't exist
@@ -214,9 +215,9 @@ location_labels = []
 # Determine edge or centre for each cubeID
 for dataset in DATASETS:
     _, cubeID = dataset.split("_CUBE_")
-    if cubeID in EDGE_POINTS:
+    if cubeID in EDGE_CUBES:
         location_labels.append("Edge")
-    elif cubeID in CENTRE_POINTS:
+    elif cubeID in CENTRE_CUBES:
         location_labels.append("Centre")
     else:
         location_labels.append("Other")  # In case the cubeID is not found in either list
@@ -240,7 +241,23 @@ for dataset in DATASETS:
         laserIDranges.append(list(range(1, len(rowrange) * len(colrange) + 1)))
 
 
-# -------------------- Preallocate lists for data storage -------------------- #
+# Separate the datasets list into waferIDs and cubeIDs
+waferIDs = [dataset.split("_CUBE_")[0] for dataset in DATASETS]
+cubeIDs = [dataset.split("_CUBE_")[1] for dataset in DATASETS]
+
+
+# Generate the laser plotting order
+laser_plotting_order = generate_laser_plotting_order(
+    laserIDranges, ROW_DYNAMIC, COLUMN_DYNAMIC, ROWS, COLS, PLOT_BY_COLUMN, DYNAMIC_ARRAYS
+)
+
+# Print the laser plotting order for verification
+print("Laser Plotting Order: ", laser_plotting_order)
+
+# %%
+#                          Initialisation of Data Storage Variables                                #
+# ------------------------------------------------------------------------------------------------ #
+
 data_raw = [None] * NUMDATA
 data_processed = [None] * NUMDATA
 data_crownprofiles = [None] * NUMDATA
@@ -260,15 +277,6 @@ for dataind in range(NUMDATA):
     angle_matrix[dataind] = np.full((len(laserIDrange), 4), np.nan)  # Initialize with NaNs
 
 processedMessages = []
-
-
-# Generate the laser plotting order
-laser_plotting_order = generate_laser_plotting_order(
-    laserIDranges, ROW_DYNAMIC, COLUMN_DYNAMIC, ROWS, COLS, PLOT_BY_COLUMN, DYNAMIC_ARRAYS
-)
-
-# Print the laser plotting order for verification
-print("Laser Plotting Order: ", laser_plotting_order)
 
 # %%
 #                       MAIN PROCESSING: Iterate Processing Loop over all input Data                       #
@@ -401,64 +409,8 @@ for dataind, dataset in enumerate(DATASETS):
             data_crowns[dataind][laserIDind] = [crown_value, xcrownP_value, xcrownN_value]
             # print(f"Assigned to data_crowns[{dataind}][{laserIDind}]: YCrown = {crown_value}, XCrownP = {xcrownP_value}, XCrownN = {xcrownN_value}")
 
-# %%
-# ---------------------- Save Raw Numbers in Excel File ---------------------- #
-
-
-def save_data_to_excel(output_path, waferID, cubeID, laserIDrange, data_crowns, angle_matrix):
-
-    # Create a list to hold the data
-
-    crown_data = []
-
-    for laserID in laserIDrange:
-
-        laserID_index = laserID - 1
-
-        crown_row = [
-            laserID,
-            data_crowns[laserID_index][0],
-            data_crowns[laserID_index][1],
-            data_crowns[laserID_index][2],
-            angle_matrix[laserID_index][0],
-            angle_matrix[laserID_index][1],
-            angle_matrix[laserID_index][2],
-            angle_matrix[laserID_index][3],
-        ]
-
-        crown_data.append(crown_row)
-
-    # Define column names
-
-    columns = ["LaserID", "YCrown", "XCrown_P", "XCrown_N", "Theta_z", "Roll", "Pitch", "Yaw"]
-
-    # Create a DataFrame
-
-    df = pd.DataFrame(crown_data, columns=columns)
-
-    # Define the output file name
-
-    output_file = os.path.join(output_path, f"{waferID}_{cubeID}_data.xlsx")
-
-    # Save the DataFrame to an Excel file
-
-    df.to_excel(output_file, index=False)
-
-    print(f"Data saved to {output_file}")
-
-
-# Save data to Excel files for each waferID-cubeID pair
-
-
-for dataind, dataset in enumerate(DATASETS):
-
-    waferID, cubeID = dataset.split("_CUBE_")
-
-    laserIDrange = laserIDranges[dataind]
-
-    save_data_to_excel(
-        OUTPUTPATH, waferID, cubeID, laserIDrange, data_crowns[dataind], angle_matrix[dataind]
-    )
+# %% [markdown]
+# # Results Exports
 
 # %%
 # -------------------------------- Initial Value Printer / Summary ------------------------------- #
@@ -501,117 +453,57 @@ for dataind, dataset in enumerate(DATASETS):
 #             print(f"    {point}")
 
 # %% [markdown]
-# # Plots
+# ### Raw Topography Results
+
+# %%
+# ---------------------- Save Crown Numbers in Excel File ---------------------- #
+
+
+def save_crowns_to_excel(output_path, waferID, cubeID, laserIDrange, data_crowns, angle_matrix):
+    # Create a list to hold the data
+    crown_data = []
+
+    for laserID in laserIDrange:
+        laserID_index = laserID - 1
+        crown_row = [
+            laserID,
+            data_crowns[laserID_index][0],
+            data_crowns[laserID_index][1],
+            data_crowns[laserID_index][2],
+            angle_matrix[laserID_index][0],
+            angle_matrix[laserID_index][1],
+            angle_matrix[laserID_index][2],
+            angle_matrix[laserID_index][3],
+        ]
+        crown_data.append(crown_row)
+
+    # Define column names
+    columns = ["LaserID", "YCrown", "XCrown_P", "XCrown_N", "Theta_z", "Roll", "Pitch", "Yaw"]
+
+    # Create a DataFrame
+    df = pd.DataFrame(crown_data, columns=columns)
+
+    # Define the output file name
+    output_file = os.path.join(output_path, f"{waferID}_{cubeID}_data.xlsx")
+
+    # Save the DataFrame to an Excel file
+    df.to_excel(output_file, index=False)
+    print(f"Data saved to {output_file}")
+
+
+# Save data to Excel files for each waferID-cubeID pair
+for dataind, dataset in enumerate(DATASETS):
+    waferID, cubeID = dataset.split("_CUBE_")
+    laserIDrange = laserIDranges[dataind]
+    save_crowns_to_excel(
+        OUTPUTPATH, waferID, cubeID, laserIDrange, data_crowns[dataind], angle_matrix[dataind]
+    )
 
 # %% [markdown]
 # ### Statistics on Crown Heights
 
-
 # %%
-# ---------------------------- Statistics on Crown Heights Calculation --------------------------- #
-# Function to calculate R² value
-def calculate_r_squared(x, y):
-    correlation_matrix = np.corrcoef(x, y)
-    correlation_xy = correlation_matrix[0, 1]
-    return correlation_xy**2
-
-
-# Function to remove anomalies and identify outliers
-def remove_anomalies_and_identify(data):
-    Q1 = np.nanpercentile(data, 25)
-    Q3 = np.nanpercentile(data, 75)
-    IQR = Q3 - Q1
-    lower_bound = Q1 - 1.5 * IQR
-    upper_bound = Q3 + 1.5 * IQR
-    filtered_data = data[(data >= lower_bound) & (data <= upper_bound)]
-    outliers = np.where((data < lower_bound) | (data > upper_bound))[0]
-    return filtered_data, outliers
-
-
-# Function to filter both crown heights and angles
-def filter_data(crown_column, angles):
-    filtered_crown_column, crown_outliers = remove_anomalies_and_identify(crown_column)
-    filtered_angles = []
-    angle_outliers = []
-
-    for i in range(angles.shape[1]):
-        filtered_angle, angle_outlier = remove_anomalies_and_identify(angles[:, i])
-        filtered_angles.append(filtered_angle)
-        angle_outliers.append(angle_outlier)
-
-    # Find common indices that are not outliers in both crown heights and angles
-    common_indices = set(range(len(crown_column))) - set(crown_outliers)
-    for outlier in angle_outliers:
-        common_indices -= set(outlier)
-
-    common_indices = list(common_indices)
-    filtered_crown_column = crown_column[common_indices]
-    filtered_angles = angles[common_indices, :]
-
-    # Find indices that are outliers in either crown heights or angles
-    all_outliers = set(range(len(crown_column))) - set(common_indices)
-
-    return filtered_crown_column, filtered_angles, list(all_outliers)
-
-
-def calculate_statistics_single_column(crown_column, angles):
-    # Initialize a dictionary to store statistics
-    stats = {
-        "mean": [],
-        "std_dev": [],
-        "max": [],
-        "min": [],
-        "range": [],
-        "outlier_lasers": [],
-        "mean_theta_x": [],
-        "mean_theta_y": [],
-        "mean_yaw": [],
-        "std_theta_x": [],
-        "std_theta_y": [],
-        "std_yaw": [],
-        "range_theta_x": [],
-        "range_theta_y": [],
-        "range_yaw": [],
-        "max_min_theta_x": [],
-        "max_min_theta_y": [],
-        "max_min_yaw": [],
-        "r_squared_theta_x": [],
-        "r_squared_theta_y": [],
-        "r_squared_yaw": [],
-    }
-
-    # Filter data
-    filtered_crown_column, filtered_angles, all_outliers = filter_data(crown_column, angles)
-
-    # Calculate statistics for the crown column
-    stats["mean"] = np.nanmean(filtered_crown_column)
-    stats["std_dev"] = np.nanstd(filtered_crown_column)
-    stats["max"] = np.nanmax(filtered_crown_column)
-    stats["min"] = np.nanmin(filtered_crown_column)
-    stats["range"] = np.nanmax(filtered_crown_column) - np.nanmin(filtered_crown_column)
-    stats["outlier_lasers"] = all_outliers
-
-    # Calculate statistics for angles
-    stats["mean_theta_x"] = np.nanmean(filtered_angles[:, 1])
-    stats["mean_theta_y"] = np.nanmean(filtered_angles[:, 2])
-    stats["mean_yaw"] = np.nanmean(filtered_angles[:, 3])
-    stats["std_theta_x"] = np.nanstd(filtered_angles[:, 1])
-    stats["std_theta_y"] = np.nanstd(filtered_angles[:, 2])
-    stats["std_yaw"] = np.nanstd(filtered_angles[:, 3])
-    stats["range_theta_x"] = np.nanmax(filtered_angles[:, 1]) - np.nanmin(filtered_angles[:, 1])
-    stats["range_theta_y"] = np.nanmax(filtered_angles[:, 2]) - np.nanmin(filtered_angles[:, 2])
-    stats["range_yaw"] = np.nanmax(filtered_angles[:, 3]) - np.nanmin(filtered_angles[:, 3])
-    stats["max_min_theta_x"] = (np.nanmax(filtered_angles[:, 1]), np.nanmin(filtered_angles[:, 1]))
-    stats["max_min_theta_y"] = (np.nanmax(filtered_angles[:, 2]), np.nanmin(filtered_angles[:, 2]))
-    stats["max_min_yaw"] = (np.nanmax(filtered_angles[:, 3]), np.nanmin(filtered_angles[:, 3]))
-
-    # Calculate R² values
-    stats["r_squared_theta_x"] = calculate_r_squared(filtered_crown_column, filtered_angles[:, 1])
-    stats["r_squared_theta_y"] = calculate_r_squared(filtered_crown_column, filtered_angles[:, 2])
-    stats["r_squared_yaw"] = calculate_r_squared(filtered_crown_column, filtered_angles[:, 3])
-
-    return stats
-
+# ------------------ Statistics on Crown Heights Calculation and Saving in Excel ----------------- #
 
 ycrown_stats = {}
 xcrownP_stats = {}
@@ -625,18 +517,7 @@ for dataind, dataset in enumerate(DATASETS):
     ycrown_stats[dataset] = calculate_statistics_single_column(crown_values[:, 0], angles)
     xcrownP_stats[dataset] = calculate_statistics_single_column(crown_values[:, 1], angles)
     xcrownN_stats[dataset] = calculate_statistics_single_column(crown_values[:, 2], angles)
-
-# Now ycrown_stats, xcrownP_stats, and xcrownN_stats contain the statistics for each dataset
-# print("YCrown Statistics:", ycrown_stats)
-# print("XCrownP Statistics:", xcrownP_stats)
-# print("XCrownN Statistics:", xcrownN_stats)
-
-
-# Function to convert statistics dictionary to DataFrame for easier reading
-def stats_to_dataframe(stats_dict):
-    df = pd.DataFrame(stats_dict).T
-    df.index.name = "Dataset"
-    return df
+# print(ycrown_stats)
 
 
 # Convert statistics dictionaries to DataFrames
@@ -644,10 +525,49 @@ ycrown_stats_df = stats_to_dataframe(ycrown_stats)
 xcrownP_stats_df = stats_to_dataframe(xcrownP_stats)
 xcrownN_stats_df = stats_to_dataframe(xcrownN_stats)
 
-# Print the DataFrames for easier reading
-print("YCrown Statistics:\n", ycrown_stats_df)
-print("\nXCrownP Statistics:\n", xcrownP_stats_df)
-print("\nXCrownN Statistics:\n", xcrownN_stats_df)
+# print(ycrown_stats_df)
+
+save_statistics_to_excel(
+    OUTPUTPATH,
+    CAMPAIGN_NAME,
+    ycrown_stats_df,
+    "YCrown",
+    waferIDs,
+    cubeIDs,
+    location_labels,
+    DESIGN_INFOS,
+    STAMP_IDS,
+)
+save_statistics_to_excel(
+    OUTPUTPATH,
+    CAMPAIGN_NAME,
+    xcrownP_stats_df,
+    "XCrownP",
+    waferIDs,
+    cubeIDs,
+    location_labels,
+    DESIGN_INFOS,
+    STAMP_IDS,
+)
+save_statistics_to_excel(
+    OUTPUTPATH,
+    CAMPAIGN_NAME,
+    xcrownN_stats_df,
+    "XCrownN",
+    waferIDs,
+    cubeIDs,
+    location_labels,
+    DESIGN_INFOS,
+    STAMP_IDS,
+)
+
+# # Print the DataFrames for easier reading
+# print("YCrown Statistics:\n", ycrown_stats_df)
+# print("\nXCrownP Statistics:\n", xcrownP_stats_df)
+# print("\nXCrownN Statistics:\n", xcrownN_stats_df)
+
+# %% [markdown]
+# # Plots
 
 # %% [markdown]
 # ### Raw Topography Plots
