@@ -19,7 +19,7 @@ import laser_orientation
 import flattening
 import crown_extraction
 import filters
-import plotting_functions
+import shared_plotting_functions as shared_plotting_functions
 
 # Import the importlib module
 import importlib
@@ -31,7 +31,7 @@ importlib.reload(laser_orientation)
 importlib.reload(flattening)
 importlib.reload(crown_extraction)
 importlib.reload(filters)
-importlib.reload(plotting_functions)
+importlib.reload(shared_plotting_functions)
 
 # Re-import the functions
 from opd_read import read_wyko_opd
@@ -40,7 +40,11 @@ from laser_orientation import estimate_rotation_and_cs
 from flattening import flatten
 from crown_extraction import extract_crown_profiles
 from filters import crown_delta_filter, crown_average_filter
-from plotting_functions import remove_offset, generate_unique_colors, generate_laser_plotting_order
+from shared_plotting_functions import (
+    remove_offset,
+    generate_unique_colors,
+    generate_laser_plotting_order,
+)
 
 # Define Maps for edge and centre cubes
 EDGE_POINTS = [
@@ -86,10 +90,13 @@ CAMPAIGN_NAME = "pythonprototyping"
 
 # ---------------------------- DATASETS to Analyse --------------------------- #
 DATASETS = [
-    "QDHLS_CUBE_161",
-    "QDHLS_CUBE_167",
-    "QDHK5_CUBE_161",
-    "QDHK5_CUBE_205",
+    "QCHV3_CUBE_142",
+    "QCHV3_CUBE_143",
+    "QCHV3_CUBE_144",
+    "QCHV3_CUBE_145",
+    "QCHV3_CUBE_146",
+    "QCHV3_CUBE_147",
+    "QCHV3_CUBE_148",
     # "240039_CUBE_LEFT3",
     # "240039_CUBE_LEFT4",
     # Add more DATASETS as needed
@@ -129,8 +136,8 @@ SUMMARYLIMS = [-300, 300]  # Yaxis lims on the summary plots
 APPLY_DELTA_FILTER = True
 APPLY_AVERAGE_FILTER = True
 
-DELTA_THRESHOLD = 10  # Adjust this value as needed
-ANOMALY_THRESHOLD = 25  # Adjust this value as needed
+DELTA_THRESHOLD = 4  # Adjust this value as needed
+ANOMALY_THRESHOLD = 20  # Adjust this value as needed
 WINDOW_SIZE_INPUT = 20  # Adjust this value as needed
 
 
@@ -148,10 +155,14 @@ GROUP_BY_DESIGN_INFO = (
 )
 
 DESIGN_INFOS = [
-    "S1.7g",
-    "S1.7g",
-    "S1.7g",
-    "blah",
+    "A",
+    "B",
+    "C",
+    "D",
+    "A",
+    "B",
+    "C",
+    "D",
 ]  # Few Files Check
 
 # COLOURS_DESIGN_ORGANISED = [[0, 1, 1], [0.5, 0, 0.5], [1, 0.5, 0], [0.5, 0.5, 0], [1, 0, 1]]
@@ -493,6 +504,152 @@ for dataind, dataset in enumerate(DATASETS):
 # # Plots
 
 # %% [markdown]
+# ### Statistics on Crown Heights
+
+
+# %%
+# ---------------------------- Statistics on Crown Heights Calculation --------------------------- #
+# Function to calculate R² value
+def calculate_r_squared(x, y):
+    correlation_matrix = np.corrcoef(x, y)
+    correlation_xy = correlation_matrix[0, 1]
+    return correlation_xy**2
+
+
+# Function to remove anomalies and identify outliers
+def remove_anomalies_and_identify(data):
+    Q1 = np.nanpercentile(data, 25)
+    Q3 = np.nanpercentile(data, 75)
+    IQR = Q3 - Q1
+    lower_bound = Q1 - 1.5 * IQR
+    upper_bound = Q3 + 1.5 * IQR
+    filtered_data = data[(data >= lower_bound) & (data <= upper_bound)]
+    outliers = np.where((data < lower_bound) | (data > upper_bound))[0]
+    return filtered_data, outliers
+
+
+# Function to filter both crown heights and angles
+def filter_data(crown_column, angles):
+    filtered_crown_column, crown_outliers = remove_anomalies_and_identify(crown_column)
+    filtered_angles = []
+    angle_outliers = []
+
+    for i in range(angles.shape[1]):
+        filtered_angle, angle_outlier = remove_anomalies_and_identify(angles[:, i])
+        filtered_angles.append(filtered_angle)
+        angle_outliers.append(angle_outlier)
+
+    # Find common indices that are not outliers in both crown heights and angles
+    common_indices = set(range(len(crown_column))) - set(crown_outliers)
+    for outlier in angle_outliers:
+        common_indices -= set(outlier)
+
+    common_indices = list(common_indices)
+    filtered_crown_column = crown_column[common_indices]
+    filtered_angles = angles[common_indices, :]
+
+    # Find indices that are outliers in either crown heights or angles
+    all_outliers = set(range(len(crown_column))) - set(common_indices)
+
+    return filtered_crown_column, filtered_angles, list(all_outliers)
+
+
+def calculate_statistics_single_column(crown_column, angles):
+    # Initialize a dictionary to store statistics
+    stats = {
+        "mean": [],
+        "std_dev": [],
+        "max": [],
+        "min": [],
+        "range": [],
+        "outlier_lasers": [],
+        "mean_theta_x": [],
+        "mean_theta_y": [],
+        "mean_yaw": [],
+        "std_theta_x": [],
+        "std_theta_y": [],
+        "std_yaw": [],
+        "range_theta_x": [],
+        "range_theta_y": [],
+        "range_yaw": [],
+        "max_min_theta_x": [],
+        "max_min_theta_y": [],
+        "max_min_yaw": [],
+        "r_squared_theta_x": [],
+        "r_squared_theta_y": [],
+        "r_squared_yaw": [],
+    }
+
+    # Filter data
+    filtered_crown_column, filtered_angles, all_outliers = filter_data(crown_column, angles)
+
+    # Calculate statistics for the crown column
+    stats["mean"] = np.nanmean(filtered_crown_column)
+    stats["std_dev"] = np.nanstd(filtered_crown_column)
+    stats["max"] = np.nanmax(filtered_crown_column)
+    stats["min"] = np.nanmin(filtered_crown_column)
+    stats["range"] = np.nanmax(filtered_crown_column) - np.nanmin(filtered_crown_column)
+    stats["outlier_lasers"] = all_outliers
+
+    # Calculate statistics for angles
+    stats["mean_theta_x"] = np.nanmean(filtered_angles[:, 1])
+    stats["mean_theta_y"] = np.nanmean(filtered_angles[:, 2])
+    stats["mean_yaw"] = np.nanmean(filtered_angles[:, 3])
+    stats["std_theta_x"] = np.nanstd(filtered_angles[:, 1])
+    stats["std_theta_y"] = np.nanstd(filtered_angles[:, 2])
+    stats["std_yaw"] = np.nanstd(filtered_angles[:, 3])
+    stats["range_theta_x"] = np.nanmax(filtered_angles[:, 1]) - np.nanmin(filtered_angles[:, 1])
+    stats["range_theta_y"] = np.nanmax(filtered_angles[:, 2]) - np.nanmin(filtered_angles[:, 2])
+    stats["range_yaw"] = np.nanmax(filtered_angles[:, 3]) - np.nanmin(filtered_angles[:, 3])
+    stats["max_min_theta_x"] = (np.nanmax(filtered_angles[:, 1]), np.nanmin(filtered_angles[:, 1]))
+    stats["max_min_theta_y"] = (np.nanmax(filtered_angles[:, 2]), np.nanmin(filtered_angles[:, 2]))
+    stats["max_min_yaw"] = (np.nanmax(filtered_angles[:, 3]), np.nanmin(filtered_angles[:, 3]))
+
+    # Calculate R² values
+    stats["r_squared_theta_x"] = calculate_r_squared(filtered_crown_column, filtered_angles[:, 1])
+    stats["r_squared_theta_y"] = calculate_r_squared(filtered_crown_column, filtered_angles[:, 2])
+    stats["r_squared_yaw"] = calculate_r_squared(filtered_crown_column, filtered_angles[:, 3])
+
+    return stats
+
+
+ycrown_stats = {}
+xcrownP_stats = {}
+xcrownN_stats = {}
+
+# Assuming DATASETS, data_crowns, and angle_matrix are defined in the main code
+for dataind, dataset in enumerate(DATASETS):
+    crown_values = np.array(data_crowns[dataind])
+    angles = np.array(angle_matrix[dataind])
+
+    ycrown_stats[dataset] = calculate_statistics_single_column(crown_values[:, 0], angles)
+    xcrownP_stats[dataset] = calculate_statistics_single_column(crown_values[:, 1], angles)
+    xcrownN_stats[dataset] = calculate_statistics_single_column(crown_values[:, 2], angles)
+
+# Now ycrown_stats, xcrownP_stats, and xcrownN_stats contain the statistics for each dataset
+# print("YCrown Statistics:", ycrown_stats)
+# print("XCrownP Statistics:", xcrownP_stats)
+# print("XCrownN Statistics:", xcrownN_stats)
+
+
+# Function to convert statistics dictionary to DataFrame for easier reading
+def stats_to_dataframe(stats_dict):
+    df = pd.DataFrame(stats_dict).T
+    df.index.name = "Dataset"
+    return df
+
+
+# Convert statistics dictionaries to DataFrames
+ycrown_stats_df = stats_to_dataframe(ycrown_stats)
+xcrownP_stats_df = stats_to_dataframe(xcrownP_stats)
+xcrownN_stats_df = stats_to_dataframe(xcrownN_stats)
+
+# Print the DataFrames for easier reading
+print("YCrown Statistics:\n", ycrown_stats_df)
+print("\nXCrownP Statistics:\n", xcrownP_stats_df)
+print("\nXCrownN Statistics:\n", xcrownN_stats_df)
+
+# %% [markdown]
 # ### Raw Topography Plots
 
 
@@ -813,7 +970,7 @@ def plot_all_crown_profiles(
     output_path,
     campaign_name,
     summary_lims,
-    palette_name="Spectral",
+    palette_name="rainbow",
     y_positions=None,
     border_colours=None,
     annotations=None,
@@ -937,7 +1094,7 @@ def plot_all_crown_profiles(
 
 
 # Example usage with horizontal lines and annotations in the legend
-y_positions = [-200, -100, 150, 210]
+y_positions = [-200, -100, 100, 200]
 border_colours = ["#FFA500", "blue", "blue", "#FFA500"]
 annotations = [
     "Typical SOLAS F range",
@@ -955,7 +1112,7 @@ plot_all_crown_profiles(
     output_path=OUTPUTPATH,
     campaign_name=CAMPAIGN_NAME,
     summary_lims=SUMMARYLIMS,
-    palette_name="Spectral",
+    palette_name="rainbow",
     y_positions=y_positions,
     border_colours=border_colours,
     annotations=annotations,
@@ -970,7 +1127,7 @@ plot_all_crown_profiles(
 
 # Function to plot individual laser profiles for a single dataset
 def plot_individual_laser_profiles_single(
-    data_crownprofiles, waferID, cubeID, output_path, campaign_name
+    data_crownprofiles, waferID, cubeID, output_path, campaign_name, colour_setting="rainbow"
 ):
     # Create a new figure for the dataset
     fig, ax = plt.subplots(figsize=(15, 7))
@@ -978,7 +1135,7 @@ def plot_individual_laser_profiles_single(
 
     # Generate unique colors for each laser profile
     num_profiles = len(data_crownprofiles)
-    colors = generate_unique_colors(num_profiles, "Spectral")
+    colors = generate_unique_colors(num_profiles, colour_setting)
 
     # Plot crown profiles for each laser in the dataset
     for laserIDind in range(num_profiles):
@@ -1022,171 +1179,27 @@ for dataind in range(len(DATASETS)):
     )
 
 # %% [markdown]
-# ### Statistics on Crown Heights
-
-
-# %%
-# ---------------------------- Statistics on Crown Heights Calculation --------------------------- #
-# Function to calculate R² value
-def calculate_r_squared(x, y):
-    correlation_matrix = np.corrcoef(x, y)
-    correlation_xy = correlation_matrix[0, 1]
-    return correlation_xy**2
-
-
-# Function to remove anomalies and identify outliers
-def remove_anomalies_and_identify(data):
-    Q1 = np.nanpercentile(data, 25)
-    Q3 = np.nanpercentile(data, 75)
-    IQR = Q3 - Q1
-    lower_bound = Q1 - 1.5 * IQR
-    upper_bound = Q3 + 1.5 * IQR
-    filtered_data = data[(data >= lower_bound) & (data <= upper_bound)]
-    outliers = np.where((data < lower_bound) | (data > upper_bound))[0]
-    return filtered_data, outliers
-
-
-# Function to filter both crown heights and angles
-def filter_data(crown_column, angles):
-    filtered_crown_column, crown_outliers = remove_anomalies_and_identify(crown_column)
-    filtered_angles = []
-    angle_outliers = []
-
-    for i in range(angles.shape[1]):
-        filtered_angle, angle_outlier = remove_anomalies_and_identify(angles[:, i])
-        filtered_angles.append(filtered_angle)
-        angle_outliers.append(angle_outlier)
-
-    # Find common indices that are not outliers in both crown heights and angles
-    common_indices = set(range(len(crown_column))) - set(crown_outliers)
-    for outlier in angle_outliers:
-        common_indices -= set(outlier)
-
-    common_indices = list(common_indices)
-    filtered_crown_column = crown_column[common_indices]
-    filtered_angles = angles[common_indices, :]
-
-    # Find indices that are outliers in either crown heights or angles
-    all_outliers = set(range(len(crown_column))) - set(common_indices)
-
-    return filtered_crown_column, filtered_angles, list(all_outliers)
-
-
-def calculate_statistics_single_column(crown_column, angles):
-    # Initialize a dictionary to store statistics
-    stats = {
-        "mean": [],
-        "std_dev": [],
-        "max": [],
-        "min": [],
-        "range": [],
-        "outlier_lasers": [],
-        "mean_theta_x": [],
-        "mean_theta_y": [],
-        "mean_yaw": [],
-        "std_theta_x": [],
-        "std_theta_y": [],
-        "std_yaw": [],
-        "range_theta_x": [],
-        "range_theta_y": [],
-        "range_yaw": [],
-        "max_min_theta_x": [],
-        "max_min_theta_y": [],
-        "max_min_yaw": [],
-        "r_squared_theta_x": [],
-        "r_squared_theta_y": [],
-        "r_squared_yaw": [],
-    }
-
-    # Filter data
-    filtered_crown_column, filtered_angles, all_outliers = filter_data(crown_column, angles)
-
-    # Calculate statistics for the crown column
-    stats["mean"] = np.nanmean(filtered_crown_column)
-    stats["std_dev"] = np.nanstd(filtered_crown_column)
-    stats["max"] = np.nanmax(filtered_crown_column)
-    stats["min"] = np.nanmin(filtered_crown_column)
-    stats["range"] = np.nanmax(filtered_crown_column) - np.nanmin(filtered_crown_column)
-    stats["outlier_lasers"] = all_outliers
-
-    # Calculate statistics for angles
-    stats["mean_theta_x"] = np.nanmean(filtered_angles[:, 1])
-    stats["mean_theta_y"] = np.nanmean(filtered_angles[:, 2])
-    stats["mean_yaw"] = np.nanmean(filtered_angles[:, 3])
-    stats["std_theta_x"] = np.nanstd(filtered_angles[:, 1])
-    stats["std_theta_y"] = np.nanstd(filtered_angles[:, 2])
-    stats["std_yaw"] = np.nanstd(filtered_angles[:, 3])
-    stats["range_theta_x"] = np.nanmax(filtered_angles[:, 1]) - np.nanmin(filtered_angles[:, 1])
-    stats["range_theta_y"] = np.nanmax(filtered_angles[:, 2]) - np.nanmin(filtered_angles[:, 2])
-    stats["range_yaw"] = np.nanmax(filtered_angles[:, 3]) - np.nanmin(filtered_angles[:, 3])
-    stats["max_min_theta_x"] = (np.nanmax(filtered_angles[:, 1]), np.nanmin(filtered_angles[:, 1]))
-    stats["max_min_theta_y"] = (np.nanmax(filtered_angles[:, 2]), np.nanmin(filtered_angles[:, 2]))
-    stats["max_min_yaw"] = (np.nanmax(filtered_angles[:, 3]), np.nanmin(filtered_angles[:, 3]))
-
-    # Calculate R² values
-    stats["r_squared_theta_x"] = calculate_r_squared(filtered_crown_column, filtered_angles[:, 1])
-    stats["r_squared_theta_y"] = calculate_r_squared(filtered_crown_column, filtered_angles[:, 2])
-    stats["r_squared_yaw"] = calculate_r_squared(filtered_crown_column, filtered_angles[:, 3])
-
-    return stats
-
-
-# Example usage
-ycrown_stats = {}
-xcrownP_stats = {}
-xcrownN_stats = {}
-
-# Assuming DATASETS, data_crowns, and angle_matrix are defined in the main code
-for dataind, dataset in enumerate(DATASETS):
-    crown_values = np.array(data_crowns[dataind])
-    angles = np.array(angle_matrix[dataind])
-
-    ycrown_stats[dataset] = calculate_statistics_single_column(crown_values[:, 0], angles)
-    xcrownP_stats[dataset] = calculate_statistics_single_column(crown_values[:, 1], angles)
-    xcrownN_stats[dataset] = calculate_statistics_single_column(crown_values[:, 2], angles)
-
-# Now ycrown_stats, xcrownP_stats, and xcrownN_stats contain the statistics for each dataset
-print("YCrown Statistics:", ycrown_stats)
-print("XCrownP Statistics:", xcrownP_stats)
-print("XCrownN Statistics:", xcrownN_stats)
-
-
-# # Function to convert statistics dictionary to DataFrame for easier reading
-# def stats_to_dataframe(stats_dict):
-#     df = pd.DataFrame(stats_dict).T
-#     df.index.name = "Dataset"
-#     return df
-
-
-# # Convert statistics dictionaries to DataFrames
-# ycrown_stats_df = stats_to_dataframe(ycrown_stats)
-# xcrownP_stats_df = stats_to_dataframe(xcrownP_stats)
-# xcrownN_stats_df = stats_to_dataframe(xcrownN_stats)
-
-# # Print the DataFrames for easier reading
-# print("YCrown Statistics:\n", ycrown_stats_df)
-# print("\nXCrownP Statistics:\n", xcrownP_stats_df)
-# print("\nXCrownN Statistics:\n", xcrownN_stats_df)
-
-# %% [markdown]
 # ### Crown Height Box Plots
 
 # %%
 # ------------------------------------- Crown Height Box Plot ------------------------------------ #
 
 
-# Function to create box plots for crown data with custom colors
-def create_box_plots(
-    data_crowns,
+# Function to create paired box plots and crown height per laser index plots for a single set of crown data
+def create_paired_plot(
+    crown_data,
     datasets,
     designinfos,
     group_by_design_info,
     output_path,
     campaign_name,
-    colour_set="Spectral",
+    ylabel,
+    title,
+    filename_suffix,
+    colour_set="rainbow",
+    y_positions=False,
+    border_colours=False,
 ):
-    fig, axes = plt.subplots(1, 3, figsize=(14, 7))
-
     # Define labels and colors
     waferIDs = [dataset.split("_CUBE_")[0] for dataset in datasets]
     cubeIDs = [dataset.split("_CUBE_")[1] for dataset in datasets]
@@ -1196,121 +1209,147 @@ def create_box_plots(
         if group_by_design_info
         else [f"{waferID} {cubeID}" for waferID, cubeID in zip(waferIDs, cubeIDs)]
     )
-
     num_datasets = len(datasets)
+
     if group_by_design_info:
         colors_to_use = generate_unique_colors(len(unique_design_infos), colour_set)
+        design_info_indices = {
+            design_info: idx for idx, design_info in enumerate(unique_design_infos)
+        }
     else:
         colors_to_use = generate_unique_colors(num_datasets, colour_set)
 
-    # YCrown Box Plot
+    # Box Plot and Crown Height per Laser Index Plot
+    fig, axes = plt.subplots(1, 2, figsize=(14, 7))
+
+    # Box Plot
     yData = []
     group = []
     colorIndex = []
+
     if group_by_design_info:
         for design_ind in range(len(unique_design_infos)):
             design_info = unique_design_infos[design_ind]
             for dataind in range(len(datasets)):
                 if designinfos[dataind] == design_info:
-                    crown_values = np.array(data_crowns[dataind])
-                    yData.extend(crown_values[:, 0])
+                    yData.extend(crown_data[dataind])
                     group.extend(
-                        [design_ind + 1] * len(crown_values[:, 0])
+                        [design_ind + 1] * len(crown_data[dataind])
                     )  # Adjusted to start from 1
-                    colorIndex.extend([design_ind] * len(crown_values[:, 0]))
-        box = axes[0].boxplot(yData, patch_artist=True)
-        for patch, color in zip(box["boxes"], [colors_to_use[i] for i in colorIndex]):
+                    colorIndex.extend([design_ind] * len(crown_data[dataind]))
+        box_data = [yData[i :: len(unique_design_infos)] for i in range(len(unique_design_infos))]
+        box = axes[0].boxplot(box_data, patch_artist=True)
+        for patch, color in zip(box["boxes"], colors_to_use):
             patch.set_facecolor(color)
     else:
         for dataind, dataset in enumerate(datasets):
-            crown_values = np.array(data_crowns[dataind])
-            yData.extend(crown_values[:, 0])
-            group.extend([dataind + 1] * len(crown_values[:, 0]))  # Adjusted to start from 1
+            yData.append(crown_data[dataind])
         box = axes[0].boxplot(yData, patch_artist=True)
         for patch, color in zip(box["boxes"], colors_to_use):
             patch.set_facecolor(color)
 
     axes[0].set_xticks(range(1, len(legendnames) + 1))
     axes[0].set_xticklabels(legendnames, rotation=45)
-    axes[0].set_ylabel("YCrown (nm)", fontsize=12, color="b")
-    axes[0].set_title("Laser YCrown Distribution", fontsize=13, color="b")
+    axes[0].set_ylabel(ylabel, fontsize=12, color="b")
+    axes[0].set_title(f"Laser {title} Distribution", fontsize=13, color="b")
     axes[0].yaxis.grid(True)
+    axes[0].xaxis.grid(True, which="both", linestyle="--", linewidth=0.7)
 
-    # XCrownP Box Plot
-    yData = []
-    group = []
-    colorIndex = []
+    if y_positions and border_colours:
+        for i in range(len(y_positions)):
+            axes[0].axhline(
+                y=y_positions[i], linestyle="--", color=border_colours[i], linewidth=1.5
+            )
+
+    # Crown Height per Laser Index Plot
     if group_by_design_info:
-        for design_ind in range(len(unique_design_infos)):
-            design_info = unique_design_infos[design_ind]
-            for dataind in range(len(datasets)):
-                if designinfos[dataind] == design_info:
-                    crown_values = np.array(data_crowns[dataind])
-                    yData.extend(crown_values[:, 1])
-                    group.extend(
-                        [design_ind + 1] * len(crown_values[:, 1])
-                    )  # Adjusted to start from 1
-                    colorIndex.extend([design_ind] * len(crown_values[:, 1]))
-        box = axes[1].boxplot(yData, patch_artist=True)
-        for patch, color in zip(box["boxes"], [colors_to_use[i] for i in colorIndex]):
-            patch.set_facecolor(color)
+        plotted_design_infos = set()
+        for dataind in range(len(datasets)):
+            design_info = designinfos[dataind]
+            color_idx = design_info_indices[design_info]
+            xData = np.arange(1, len(crown_data[dataind]) + 1)
+            yData = crown_data[dataind]
+            if design_info not in plotted_design_infos:
+                axes[1].plot(
+                    xData, yData, "d-", color=colors_to_use[color_idx], label=legendnames[color_idx]
+                )
+                plotted_design_infos.add(design_info)
+            else:
+                axes[1].plot(xData, yData, "d-", color=colors_to_use[color_idx])
+
+        handles, labels = axes[1].get_legend_handles_labels()
+        by_label = dict(zip(labels, handles))
+        axes[1].legend(by_label.values(), by_label.keys())
+
     else:
-        for dataind, dataset in enumerate(datasets):
-            crown_values = np.array(data_crowns[dataind])
-            yData.extend(crown_values[:, 1])
-            group.extend([dataind + 1] * len(crown_values[:, 1]))  # Adjusted to start from 1
-        box = axes[1].boxplot(yData, patch_artist=True)
-        for patch, color in zip(box["boxes"], colors_to_use):
-            patch.set_facecolor(color)
+        for dataind in range(len(datasets)):
+            xData = np.arange(1, len(crown_data[dataind]) + 1)
+            yData = crown_data[dataind]
+            axes[1].plot(
+                xData, yData, "d-", color=colors_to_use[dataind], label=legendnames[dataind]
+            )
+        axes[1].legend(loc="center left", bbox_to_anchor=(1, 0.5), fontsize="small")
 
-    axes[1].set_xticks(range(1, len(legendnames) + 1))
-    axes[1].set_xticklabels(legendnames, rotation=45)
-    axes[1].set_ylabel("XCrown_P (nm)", fontsize=12, color="b")
-    axes[1].set_title("Laser XCrown_P Distribution", fontsize=13, color="b")
-    axes[1].yaxis.grid(True)
+    axes[1].set_xlabel("Laser Sample Index (#)", fontsize=12, color="b")
+    axes[1].set_ylabel(ylabel, fontsize=12, color="b")
+    axes[1].set_title(f"Laser {title}", fontsize=13, color="b")
+    axes[1].grid(True)
 
-    # XCrownN Box Plot
-    yData = []
-    group = []
-    colorIndex = []
-    if group_by_design_info:
-        for design_ind in range(len(unique_design_infos)):
-            design_info = unique_design_infos[design_ind]
-            for dataind in range(len(datasets)):
-                if designinfos[dataind] == design_info:
-                    crown_values = np.array(data_crowns[dataind])
-                    yData.extend(crown_values[:, 2])
-                    group.extend(
-                        [design_ind + 1] * len(crown_values[:, 2])
-                    )  # Adjusted to start from 1
-                    colorIndex.extend([design_ind] * len(crown_values[:, 2]))
-        box = axes[2].boxplot(yData, patch_artist=True)
-        for patch, color in zip(box["boxes"], [colors_to_use[i] for i in colorIndex]):
-            patch.set_facecolor(color)
-    else:
-        for dataind, dataset in enumerate(datasets):
-            crown_values = np.array(data_crowns[dataind])
-            yData.extend(crown_values[:, 2])
-            group.extend([dataind + 1] * len(crown_values[:, 2]))  # Adjusted to start from 1
-        box = axes[2].boxplot(yData, patch_artist=True)
-        for patch, color in zip(box["boxes"], colors_to_use):
-            patch.set_facecolor(color)
+    # Set the same y-limits for both plots
+    ylim = axes[0].get_ylim()
+    axes[1].set_ylim(ylim)
 
-    axes[2].set_xticks(range(1, len(legendnames) + 1))
-    axes[2].set_xticklabels(legendnames, rotation=45)
-    axes[2].set_ylabel("XCrown_N (nm)", fontsize=12, color="b")
-    axes[2].set_title("Laser XCrown_N Distribution", fontsize=13, color="b")
-    axes[2].yaxis.grid(True)
+    if y_positions and border_colours:
+        for i in range(len(y_positions)):
+            axes[0].axhline(
+                y=y_positions[i], linestyle="--", color=border_colours[i], linewidth=1.5
+            )
 
     plt.tight_layout()
 
     # Save the figure
-    output_file = f"{output_path}/{campaign_name}_Crown_Values_Boxplot.png"
+    output_file = f"{output_path}/{campaign_name}_{filename_suffix}_Paired_Plot.png"
     plt.savefig(output_file, dpi=300)
 
-    print(f"Box plots saved to {output_file}")
 
+y_positions = [-200, -100, 100, 200]
+border_colours = ["#FFA500", "blue", "blue", "#FFA500"]
 
-create_box_plots(data_crowns, DATASETS, DESIGN_INFOS, True, OUTPUTPATH, CAMPAIGN_NAME)
+create_paired_plot(
+    [data[:, 0] for data in data_crowns],
+    DATASETS,
+    DESIGN_INFOS,
+    False,
+    OUTPUTPATH,
+    CAMPAIGN_NAME,
+    "YCrown (nm)",
+    "YCrown",
+    "YCrown",
+    "rainbow",
+    y_positions,
+    border_colours,
+)
+create_paired_plot(
+    [data[:, 1] for data in data_crowns],
+    DATASETS,
+    DESIGN_INFOS,
+    False,
+    OUTPUTPATH,
+    CAMPAIGN_NAME,
+    "XCrown_P (nm)",
+    "XCrown_P",
+    "XCrownP",
+)
+create_paired_plot(
+    [data[:, 2] for data in data_crowns],
+    DATASETS,
+    DESIGN_INFOS,
+    False,
+    OUTPUTPATH,
+    CAMPAIGN_NAME,
+    "XCrown_N (nm)",
+    "XCrown_N",
+    "XCrownN",
+)
 
 # %%
