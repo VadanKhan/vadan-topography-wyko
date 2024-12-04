@@ -73,7 +73,7 @@ def calculate_statistics_single_column(crown_column, angles):
     }
 
     # Filter data
-    filtered_crown_column, filtered_angles, all_outliers = filter_data(crown_column, angles)
+    filtered_crown_column, filtered_angles, all_outliers = common_data_filter(crown_column, angles)
 
     # Calculate statistics for the crown column
     stats["mean"] = np.nanmean(filtered_crown_column)
