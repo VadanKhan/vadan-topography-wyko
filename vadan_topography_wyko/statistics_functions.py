@@ -183,7 +183,7 @@ def save_statistics_to_excel(
 
     # Define the output file name
     output_file = os.path.join(
-        output_path, f"{campaign_name} {name} Laser bowing data statistics .xlsx"
+        output_path, f"{campaign_name}_{name}_Laser_bowing_data_statistics.xlsx"
     )
 
     # Ensure the output directory exists
