@@ -1,4 +1,6 @@
 import numpy as np
+import pandas as pd
+import os
 
 
 # Function to calculate R² value
@@ -107,3 +109,86 @@ def calculate_statistics_single_column(crown_column, angles):
     stats["r_squared_yaw"] = calculate_r_squared(filtered_crown_column, filtered_angles[:, 3])
 
     return stats
+
+
+# Function to convert statistics dictionary to DataFrame for easier reading
+def stats_to_dataframe(stats_dict):
+    df = pd.DataFrame(stats_dict).T
+    df.index.name = "Dataset"
+    return df
+
+
+# Function to save statistics to Excel file in the same format as the MATLAB one
+def save_statistics_to_excel(
+    output_path,
+    campaign_name,
+    crown_stats_df,
+    name,
+    wafer_ids,
+    cube_ids,
+    loc_labels,
+    design_infos,
+    stamp_ids,
+):
+
+    # Define row names for the statistics table
+    rownames = [
+        "mean",
+        "Sigma",
+        "max",
+        "min",
+        "range",
+        "Outlier lasers",
+        "Mean Roll Angle(degrees)",
+        "Mean Pitch Angle(degrees)",
+        "Mean Yaw Angle (degrees)",
+        "Std Roll Angle (degrees)",
+        "Std Pitch Angle (degrees)",
+        "Std Yaw Angle (degrees)",
+        "Range Roll Angle (degrees)",
+        "Range Pitch Angle(degrees)",
+        "Range Yaw Angle (degrees)",
+        "Max/Min Roll Angle(degrees)",
+        "Max/Min Pitch (degrees)",
+        "Max/Min Yaw (degrees)",
+        "R² Roll",
+        "R² Pitch",
+        "R² Yaw",
+    ]
+
+    # Create a dictionary to hold all data
+    data = {
+        "Wafer": wafer_ids,
+        "Design": design_infos,
+        "Stamp IDs": stamp_ids,
+        " ": [""] * len(crown_stats_df),
+        "Cube Number": cube_ids,
+        "Loc": loc_labels,
+        "   ": [""] * len(crown_stats_df),
+        "    ": [""] * len(crown_stats_df),
+    }
+
+    # Add crown data
+    for i, row in enumerate(rownames):
+        data[row] = list(crown_stats_df.iloc[:, i])
+
+    # Ensure all lists have the same length
+    max_length = max(len(v) for v in data.values())
+    for k, v in data.items():
+        if len(v) < max_length:
+            data[k] = v + [""] * (max_length - len(v))
+
+    # Convert the dictionary to a DataFrame
+    df = pd.DataFrame(data)
+
+    # Define the output file name
+    output_file = os.path.join(
+        output_path, f"{campaign_name} {name} Laser bowing data statistics .xlsx"
+    )
+
+    # Ensure the output directory exists
+    os.makedirs(output_path, exist_ok=True)
+
+    # Save the DataFrame to an Excel file
+    df.to_excel(output_file, index=False)
+    print(f"Statistics saved to {output_file}")
