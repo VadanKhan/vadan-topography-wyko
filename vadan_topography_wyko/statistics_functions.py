@@ -182,9 +182,7 @@ def save_statistics_to_excel(
     df = pd.DataFrame(data)
 
     # Define the output file name
-    output_file = os.path.join(
-        output_path, f"{campaign_name}_{name}_Laser_bowing_data_statistics.xlsx"
-    )
+    output_file = os.path.join(output_path, f"{campaign_name}_STATS_{name}_Laser_bowing_data_.xlsx")
 
     # Ensure the output directory exists
     os.makedirs(output_path, exist_ok=True)
