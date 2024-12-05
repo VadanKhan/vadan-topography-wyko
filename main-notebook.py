@@ -64,6 +64,7 @@ EDGE_CUBES = [
     "148",
     "185",
     "128",
+    "127",
     "177",
     "157",
     "158",
@@ -93,17 +94,15 @@ DATASETS = []
 
 # ---------------- Input and Output Paths + Analysis Plot Names -------------- #
 INPUTPATH = "C:\\Users\\762093\\Documents\\WYKO_DATA"
-OUTPUTPATH = "C:\\Users\\762093\\Documents\\WYKO_DATA\\output_debug"
+OUTPUTPATH = "C:\\Users\\762093\\Documents\\WYKO_DATA\\OUTPUTS\\QDHL3"
 
-CAMPAIGN_NAME = "pythonprototyping"
+CAMPAIGN_NAME = "RECENTS-QDHL3"
 
 
 # ---------------------------- DATASETS to Analyse --------------------------- #
 DATASETS = [
-    "QCHUP_CUBE_161",
-    "QCHUP_CUBE_167",
-    # "240039_CUBE_LEFT3",
-    # "240039_CUBE_LEFT4",
+    "QDHL3_CUBE_142",
+    "QDHL3_CUBE_127",
     # Add more DATASETS as needed
 ]
 NUMDATA = len(DATASETS)
@@ -114,14 +113,14 @@ GROUP_BY_DESIGN_INFO = (
 )
 
 DESIGN_INFOS = [
-    "60s RTA - G Dense",
-    "60s RTA - G Dense",
+    "Config G - 30s RTA",
+    "Config G - 30s RTA",
 ]  # Few Files Check
 
 # ------------------------------------------ Stamp Info ------------------------------------------ #
 STAMP_IDS = [
-    240058,
-    240025,
+    230071,
+    230073,
 ]
 
 # ------- input the number of ROWS and columns in measured laser array. ------- #
@@ -460,11 +459,15 @@ for dataind, dataset in enumerate(DATASETS):
 
 
 def save_crowns_to_excel(output_path, waferID, cubeID, laserIDrange, data_crowns, angle_matrix):
+
     # Create a list to hold the data
+
     crown_data = []
 
     for laserID in laserIDrange:
+
         laserID_index = laserID - 1
+
         crown_row = [
             laserID,
             data_crowns[laserID_index][0],
@@ -475,29 +478,85 @@ def save_crowns_to_excel(output_path, waferID, cubeID, laserIDrange, data_crowns
             angle_matrix[laserID_index][2],
             angle_matrix[laserID_index][3],
         ]
+
         crown_data.append(crown_row)
 
     # Define column names
+
     columns = ["LaserID", "YCrown", "XCrown_P", "XCrown_N", "Theta_z", "Roll", "Pitch", "Yaw"]
 
     # Create a DataFrame
+
     df = pd.DataFrame(crown_data, columns=columns)
 
     # Define the output file name
-    output_file = os.path.join(output_path, f"{waferID}_{cubeID}_data.xlsx")
+
+    output_file = os.path.join(output_path, f"{waferID}_{cubeID}_Crown_Data.xlsx")
 
     # Save the DataFrame to an Excel file
+
     df.to_excel(output_file, index=False)
+
     print(f"Data saved to {output_file}")
 
 
 # Save data to Excel files for each waferID-cubeID pair
+
+
 for dataind, dataset in enumerate(DATASETS):
+
     waferID, cubeID = dataset.split("_CUBE_")
+
     laserIDrange = laserIDranges[dataind]
+
     save_crowns_to_excel(
         OUTPUTPATH, waferID, cubeID, laserIDrange, data_crowns[dataind], angle_matrix[dataind]
     )
+
+# %%
+# ------------------------------- Save Crown Profiles in Excel File ------------------------------ #
+
+
+def export_all_datasets_to_excel(output_path, datasets, data_crownprofiles_list, name):
+    """
+    Export crown profile data to Excel files, one file per dataset.
+
+    Parameters:
+    - output_path: The directory where the Excel files will be saved.
+    - datasets: A list of dataset names.
+    - data_crownprofiles_list: A list of crown profiles for each dataset.
+    """
+    # Create output directory if it doesn't exist
+    os.makedirs(output_path, exist_ok=True)
+
+    # Loop through each dataset and its corresponding crown profiles
+    for dataset_name, data_crownprofiles in zip(datasets, data_crownprofiles_list):
+        # Create a DataFrame to hold all crown profiles for the dataset
+        all_profiles = []
+
+        # Loop through each laser's crown profile data
+        for laser_id, crown_profile in enumerate(data_crownprofiles):
+            # Create a DataFrame from the crown profile data
+            df = pd.DataFrame(crown_profile, columns=["Position (um)", "Height (nm)"])
+            df["LaserID"] = laser_id + 1  # Add a column for LaserID
+
+            # Append to the list of all profiles
+            all_profiles.append(df)
+
+        # Concatenate all profiles into a single DataFrame
+        all_profiles_df = pd.concat(all_profiles, ignore_index=True)
+
+        # Define the output file name
+        output_file = os.path.join(output_path, f"{dataset_name}_All_{name}_Profiles.xlsx")
+
+        # Save the DataFrame to an Excel file
+        all_profiles_df.to_excel(output_file, index=False)
+
+        print(f"All crown profiles for {dataset_name} saved to {output_file}")
+
+
+export_all_datasets_to_excel(OUTPUTPATH, DATASETS, data_crownprofiles, "YCrown")
+export_all_datasets_to_excel(OUTPUTPATH, DATASETS, data_xcrownprofiles, "XCrown")
 
 # %% [markdown]
 # ### Statistics on Crown Heights
@@ -904,7 +963,7 @@ def plot_all_crown_profiles(
     legendnames = (
         unique_design_infos
         if group_by_design_info
-        else [f"{waferID} {cubeID}" for waferID, cubeID in zip(waferIDs, cubeIDs)]
+        else [f"{waferID} {cube_loc}" for waferID, cube_loc in zip(waferIDs, location_labels)]
     )
 
     # Generate unique colors for each profile
@@ -1127,7 +1186,7 @@ def create_paired_plot(
     legendnames = (
         unique_design_infos
         if group_by_design_info
-        else [f"{waferID} {cubeID}" for waferID, cubeID in zip(waferIDs, cubeIDs)]
+        else [f"{waferID} {cube_loc}" for waferID, cube_loc in zip(waferIDs, location_labels)]
     )
     num_datasets = len(datasets)
 
