@@ -101,6 +101,12 @@ CAMPAIGN_NAME = "RECENTS-QDHL3"
 
 # ---------------------------- DATASETS to Analyse --------------------------- #
 DATASETS = [
+    "QDHLT_CUBE_167",
+    "QDHLT_CUBE_167",
+    "QDHJY_CUBE_161",
+    "QDHJY_CUBE_167",
+    "QCHUP_CUBE_161",
+    "QCHUP_CUBE_167",
     "QDHL3_CUBE_142",
     "QDHL3_CUBE_127",
     # Add more DATASETS as needed
@@ -949,6 +955,7 @@ def plot_all_crown_profiles(
     output_path,
     campaign_name,
     summary_lims,
+    imgqual,
     palette_name="rainbow",
     y_positions=None,
     border_colours=None,
@@ -1069,7 +1076,7 @@ def plot_all_crown_profiles(
 
     plt.tight_layout()
     output_file = os.path.join(output_path, f"{campaign_name}_All_Crown_Profiles.png")
-    plt.savefig(output_file, bbox_inches="tight")
+    plt.savefig(output_file, bbox_inches="tight", dpi=imgqual)
 
 
 # Example usage with horizontal lines and annotations in the legend
@@ -1092,6 +1099,7 @@ plot_all_crown_profiles(
     campaign_name=CAMPAIGN_NAME,
     summary_lims=SUMMARYLIMS,
     palette_name="rainbow",
+    imgqual=IMGQUAL,
     y_positions=y_positions,
     border_colours=border_colours,
     annotations=annotations,
@@ -1106,7 +1114,13 @@ plot_all_crown_profiles(
 
 # Function to plot individual laser profiles for a single dataset
 def plot_individual_laser_profiles_single(
-    data_crownprofiles, waferID, cubeID, output_path, campaign_name, colour_setting="rainbow"
+    data_crownprofiles,
+    waferID,
+    cubeID,
+    output_path,
+    campaign_name,
+    imgqual,
+    colour_setting="rainbow",
 ):
     # Create a new figure for the dataset
     fig, ax = plt.subplots(figsize=(15, 7))
@@ -1142,7 +1156,7 @@ def plot_individual_laser_profiles_single(
     output_file = os.path.join(
         output_path, f"{campaign_name}_{waferID}_{cubeID}_Individual_Laser_Profiles.png"
     )
-    plt.savefig(output_file, bbox_inches="tight")
+    plt.savefig(output_file, bbox_inches="tight", dpi=imgqual)
 
 
 # Example usage: Iterate over each dataset and plot individual laser profiles
@@ -1155,6 +1169,7 @@ for dataind in range(len(DATASETS)):
         cubeID=cubeID,
         output_path=OUTPUTPATH,
         campaign_name=CAMPAIGN_NAME,
+        imgqual=IMGQUAL,
     )
 
 # %% [markdown]
@@ -1175,6 +1190,7 @@ def create_paired_plot(
     ylabel,
     title,
     filename_suffix,
+    imgqual,
     colour_set="rainbow",
     y_positions=False,
     border_colours=False,
@@ -1288,7 +1304,7 @@ def create_paired_plot(
 
     # Save the figure
     output_file = f"{output_path}/{campaign_name}_{filename_suffix}_Paired_Plot.png"
-    plt.savefig(output_file, dpi=300)
+    plt.savefig(output_file, dpi=imgqual)
 
 
 y_positions = [-200, -100, 100, 200]
@@ -1304,6 +1320,7 @@ create_paired_plot(
     "YCrown (nm)",
     "YCrown",
     "YCrown",
+    IMGQUAL,
     "rainbow",
     y_positions,
     border_colours,
@@ -1318,6 +1335,7 @@ create_paired_plot(
     "XCrown_P (nm)",
     "XCrown_P",
     "XCrownP",
+    IMGQUAL,
 )
 create_paired_plot(
     [data[:, 2] for data in data_crowns],
@@ -1329,6 +1347,115 @@ create_paired_plot(
     "XCrown_N (nm)",
     "XCrown_N",
     "XCrownN",
+    IMGQUAL,
 )
 
+# %% [markdown]
+# ### Scatter Plot
+
 # %%
+# -------------------------------- Mean Crown Height Scatter Plot -------------------------------- #
+
+# Assuming DATASETS, data_crowns, and angle_matrix are defined in the main code
+ycrown_stats = {}
+xcrownP_stats = {}
+xcrownN_stats = {}
+
+for dataind, dataset in enumerate(DATASETS):
+    crown_values = np.array(data_crowns[dataind])
+    angles = np.array(angle_matrix[dataind])
+
+    ycrown_stats[dataset] = calculate_statistics_single_column(crown_values[:, 0], angles)
+    xcrownP_stats[dataset] = calculate_statistics_single_column(crown_values[:, 1], angles)
+    xcrownN_stats[dataset] = calculate_statistics_single_column(crown_values[:, 2], angles)
+
+# Extracting the mean values for each dataset
+ycrown_means = [ycrown_stats[dataset]["mean"] for dataset in DATASETS]
+xcrownp_means = [xcrownP_stats[dataset]["mean"] for dataset in DATASETS]
+xcrownn_means = [xcrownN_stats[dataset]["mean"] for dataset in DATASETS]
+
+# Generate unique colors for each dataset
+colors = generate_unique_colors(len(DATASETS), "rainbow")
+
+
+def generate_scatter_plot(
+    x_data,
+    y_data,
+    x_label,
+    y_label,
+    title,
+    output_path,
+    campaign_name,
+    filename_suffix,
+    imgqual,
+    h_lines=None,
+    h_colors=None,
+    h_labels=None,
+    point_labels=None,
+):
+    plt.figure(figsize=(10, 6))
+    for i in range(len(x_data)):
+        plt.scatter(x_data[i], y_data[i], c=[colors[i]], marker="X", label=point_labels[i], s=200)
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.title(title)
+    plt.grid(True)
+
+    # Add horizontal dashed lines if provided
+    if h_lines and h_colors and h_labels:
+        for i in range(len(h_lines)):
+            plt.axhline(y=h_lines[i], color=h_colors[i], linestyle="--", label=h_labels[i])
+        plt.legend(loc="center left", bbox_to_anchor=(1, 0.5), fontsize="small")
+
+    output_file = f"{output_path}/{campaign_name}_{filename_suffix}_Scatter_Plot.png"
+    plt.savefig(output_file, dpi=imgqual)
+
+
+h_lines = [-200, -100, 100, 200]
+h_colors = ["#FFA500", "blue", "blue", "#FFA500"]
+h_labels = [
+    "Typical SOLAS F range",
+    "Typical SOLAS G range",
+    "Typical SOLAS G range",
+    "Typical SOLAS F range",
+]
+
+# Generate the first scatter plot (XCrownP) with horizontal lines
+generate_scatter_plot(
+    xcrownp_means,
+    ycrown_means,
+    "Mean of XCrownP distribution (nm)",
+    "Mean of YCrown distribution (nm)",
+    "Wafer Samples Comparison by mean of Bowing (XCrownP)",
+    OUTPUTPATH,
+    CAMPAIGN_NAME,
+    "XCrownP",
+    IMGQUAL,
+    h_lines,
+    h_colors,
+    h_labels,
+    DATASETS,
+)
+
+# Generate the second scatter plot (XCrownN) with horizontal lines
+generate_scatter_plot(
+    xcrownn_means,
+    ycrown_means,
+    "Mean of XCrownN distribution (nm)",
+    "Mean of YCrown distribution (nm)",
+    "Wafer Samples Comparison by mean of Bowing (XCrownN)",
+    OUTPUTPATH,
+    CAMPAIGN_NAME,
+    "XCrownN",
+    IMGQUAL,
+    h_lines,
+    h_colors,
+    h_labels,
+    DATASETS,
+)
+
+# %% [markdown]
+# ### Angle Plots
+
+# %%
+# ------------------------- Plane Angles Plotted along with Crown Height ------------------------- #
