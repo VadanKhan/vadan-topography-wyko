@@ -94,21 +94,18 @@ DATASETS = []
 
 # ---------------- Input and Output Paths + Analysis Plot Names -------------- #
 INPUTPATH = "C:\\Users\\762093\\Documents\\WYKO_DATA"
-OUTPUTPATH = "C:\\Users\\762093\\Documents\\WYKO_DATA\\OUTPUTS\\QDHL3"
+OUTPUTPATH = "C:\\Users\\762093\\Documents\\WYKO_DATA\\OUTPUTS\\QCHUH"
 
-CAMPAIGN_NAME = "RECENTS-QDHL3"
+CAMPAIGN_NAME = "QCHUH"
 
 
 # ---------------------------- DATASETS to Analyse --------------------------- #
 DATASETS = [
-    "QDHLT_CUBE_167",
-    "QDHLT_CUBE_167",
-    "QDHJY_CUBE_161",
-    "QDHJY_CUBE_167",
+    "QCHV3_CUBE_142",
+    "QCHV3_CUBE_148",
     "QCHUP_CUBE_161",
     "QCHUP_CUBE_167",
-    "QDHL3_CUBE_142",
-    "QDHL3_CUBE_127",
+    "QCHUH_CUBE_161",
     # Add more DATASETS as needed
 ]
 NUMDATA = len(DATASETS)
@@ -119,14 +116,20 @@ GROUP_BY_DESIGN_INFO = (
 )
 
 DESIGN_INFOS = [
-    "Config G - 30s RTA",
-    "Config G - 30s RTA",
+    "60s RTA - G Dense",
+    "60s RTA - G Dense",
+    "60s RTA - G Dense",
+    "60s RTA - G Dense",
+    "60s RTA - G Dense",
 ]  # Few Files Check
 
 # ------------------------------------------ Stamp Info ------------------------------------------ #
 STAMP_IDS = [
+    230027,
+    240073,
+    240058,
+    240025,
     230071,
-    230073,
 ]
 
 # ------- input the number of ROWS and columns in measured laser array. ------- #
@@ -161,8 +164,8 @@ SUMMARYLIMS = [-300, 300]  # Yaxis lims on the summary plots
 APPLY_DELTA_FILTER = True
 APPLY_AVERAGE_FILTER = True
 
-DELTA_THRESHOLD = 4  # Adjust this value as needed
-ANOMALY_THRESHOLD = 20  # Adjust this value as needed
+DELTA_THRESHOLD = 10  # Adjust this value as needed
+ANOMALY_THRESHOLD = 25  # Adjust this value as needed
 WINDOW_SIZE_INPUT = 20  # Adjust this value as needed
 
 
@@ -188,7 +191,7 @@ COLUMN_DYNAMIC = [20, 20]
 
 
 # ------------------------- Plotting Indexing Option: ROW  ------------------------- #
-PLOT_BY_COLUMN = True
+PLOT_BY_COLUMN = False
 
 # endregion USER INPUTS
 
@@ -280,6 +283,9 @@ for dataind in range(NUMDATA):
     data_crowns[dataind] = np.full((len(laserIDrange), 3), np.nan)  # Initialize with NaNs,
     # 3 columns for Ycrown, XcrownP and XcrownN respectively
     angle_matrix[dataind] = np.full((len(laserIDrange), 4), np.nan)  # Initialize with NaNs
+    # First column theta_z (general misalignment angle with flat)
+    # Columns Afterward: Roll angle, pitch angle, yaw angle
+    # Cols (1, 2, 3, 4) = (theta_z, roll, pitch, yaw)
 
 processedMessages = []
 
@@ -516,7 +522,7 @@ for dataind, dataset in enumerate(DATASETS):
     laserIDrange = laserIDranges[dataind]
 
     save_crowns_to_excel(
-        OUTPUTPATH, waferID, cubeID, laserIDrange, data_crowns[dataind], angle_matrix[dataind]
+        INPUTPATH, waferID, cubeID, laserIDrange, data_crowns[dataind], angle_matrix[dataind]
     )
 
 # %%
@@ -561,8 +567,8 @@ def export_all_datasets_to_excel(output_path, datasets, data_crownprofiles_list,
         print(f"All crown profiles for {dataset_name} saved to {output_file}")
 
 
-export_all_datasets_to_excel(OUTPUTPATH, DATASETS, data_crownprofiles, "YCrown")
-export_all_datasets_to_excel(OUTPUTPATH, DATASETS, data_xcrownprofiles, "XCrown")
+export_all_datasets_to_excel(INPUTPATH, DATASETS, data_crownprofiles, "YCrown")
+export_all_datasets_to_excel(INPUTPATH, DATASETS, data_xcrownprofiles, "XCrown")
 
 # %% [markdown]
 # ### Statistics on Crown Heights
@@ -635,309 +641,189 @@ save_statistics_to_excel(
 # # Plots
 
 # %% [markdown]
-# ### Raw Topography Plots
-
+# ### Crown Height Box Plots
 
 # %%
-# --------------------------- RAW Colour Map Plots --------------------------- #
-def plot_raw_data(
-    data_raw,
-    waferID,
-    cubeID,
-    laserIDrange,
+# ------------------------------------- Crown Height Box Plot ------------------------------------ #
+
+
+# Function to create paired box plots and crown height per laser index plots for a single set of crown data
+def create_paired_plot(
+    crown_data,
+    datasets,
+    designinfos,
+    group_by_design_info,
     output_path,
     campaign_name,
-    rows,
-    cols,
-    zlim_colour,
+    ylabel,
+    title,
+    filename_suffix,
     imgqual,
-    laser_plotting_order,
+    colour_set="rainbow",
+    y_positions=False,
+    border_colours=False,
 ):
-    # Calculate the figure size dynamically based on the number of rows and columns
-    fig_width = cols * 1  # Adjust the multiplier as needed
-    fig_height = rows * 3  # Adjust the multiplier as needed
-
-    fig, axes = plt.subplots(rows, cols, figsize=(fig_width, fig_height))
-    fig.suptitle(
-        f"{waferID} {cubeID} - RAW DATA COLOUR MAPS",
-        fontsize=40,
-        fontfamily="monospace",
-        fontweight="bold",
-        color="g",
-        y=1,
+    # Define labels and colors
+    waferIDs = [dataset.split("_CUBE_")[0] for dataset in datasets]
+    cubeIDs = [dataset.split("_CUBE_")[1] for dataset in datasets]
+    unique_design_infos = list(set(designinfos))
+    legendnames = (
+        unique_design_infos
+        if group_by_design_info
+        else [f"{waferID} {cube_loc}" for waferID, cube_loc in zip(waferIDs, location_labels)]
     )
+    num_datasets = len(datasets)
 
-    for plot_index in range(len(laserIDrange)):
-        row = plot_index // cols
-        col = plot_index % cols
-        ax = axes[row, col]
+    if group_by_design_info:
+        colors_to_use = generate_unique_colors(len(unique_design_infos), colour_set)
+        design_info_indices = {
+            design_info: idx for idx, design_info in enumerate(unique_design_infos)
+        }
+    else:
+        colors_to_use = generate_unique_colors(num_datasets, colour_set)
 
-        if plot_index < len(data_raw):
-            image = data_raw[plot_index]
-            im = ax.imshow(image, cmap="jet", aspect="equal")
+    # Box Plot and Crown Height per Laser Index Plot
+    fig, axes = plt.subplots(1, 2, figsize=(14, 7))
 
-            # Set the title based on the laser plotting order
-            laserIDind = laser_plotting_order[plot_index]
-            ax.set_title(f"{laserIDind + 1}", fontsize=13, color="b")
+    # Box Plot
+    yData = []
+    group = []
+    colorIndex = []
 
-            # Only add axis labels to the first subplot
-            if plot_index == 0:
-                ax.set_xlabel("Pixel")
-                ax.set_ylabel("Pixel")
+    if group_by_design_info:
+        for design_ind in range(len(unique_design_infos)):
+            design_info = unique_design_infos[design_ind]
+            for dataind in range(len(datasets)):
+                if designinfos[dataind] == design_info:
+                    yData.extend(crown_data[dataind])
+                    group.extend(
+                        [design_ind + 1] * len(crown_data[dataind])
+                    )  # Adjusted to start from 1
+                    colorIndex.extend([design_ind] * len(crown_data[dataind]))
+        box_data = [yData[i :: len(unique_design_infos)] for i in range(len(unique_design_infos))]
+        box = axes[0].boxplot(box_data, patch_artist=True)
+        for patch, color in zip(box["boxes"], colors_to_use):
+            patch.set_facecolor(color)
+    else:
+        for dataind, dataset in enumerate(datasets):
+            yData.append(crown_data[dataind])
+        box = axes[0].boxplot(yData, patch_artist=True)
+        for patch, color in zip(box["boxes"], colors_to_use):
+            patch.set_facecolor(color)
+
+    axes[0].set_xticks(range(1, len(legendnames) + 1))
+    axes[0].set_xticklabels(legendnames, rotation=45)
+    axes[0].set_ylabel(ylabel, fontsize=12, color="b")
+    axes[0].set_title(f"Laser {title} Distribution", fontsize=13, color="b")
+    axes[0].yaxis.grid(True)
+    axes[0].xaxis.grid(True, which="both", linestyle="--", linewidth=0.7)
+
+    if y_positions and border_colours:
+        for i in range(len(y_positions)):
+            axes[0].axhline(
+                y=y_positions[i], linestyle="--", color=border_colours[i], linewidth=1.5
+            )
+
+    # Crown Height per Laser Index Plot
+    if group_by_design_info:
+        plotted_design_infos = set()
+        for dataind in range(len(datasets)):
+            design_info = designinfos[dataind]
+            color_idx = design_info_indices[design_info]
+            xData = np.arange(1, len(crown_data[dataind]) + 1)
+            yData = crown_data[dataind]
+            if design_info not in plotted_design_infos:
+                axes[1].plot(
+                    xData, yData, "d-", color=colors_to_use[color_idx], label=legendnames[color_idx]
+                )
+                plotted_design_infos.add(design_info)
             else:
-                ax.set_xticks([])
-                ax.set_yticks([])
+                axes[1].plot(xData, yData, "d-", color=colors_to_use[color_idx])
 
-            im.set_clim([-zlim_colour, zlim_colour])
+        handles, labels = axes[1].get_legend_handles_labels()
+        by_label = dict(zip(labels, handles))
+        axes[1].legend(by_label.values(), by_label.keys())
 
-            # Set xlims and ylims to exclude empty spaces
-            non_nan_indices = np.argwhere(~np.isnan(image))
-            y_min, x_min = non_nan_indices.min(axis=0)
-            y_max, x_max = non_nan_indices.max(axis=0)
-            ax.set_xlim(x_min, x_max)
-            ax.set_ylim(y_max, y_min)  # Note: y-axis is inverted in images
-        else:
-            ax.axis("off")
+    else:
+        for dataind in range(len(datasets)):
+            xData = np.arange(1, len(crown_data[dataind]) + 1)
+            yData = crown_data[dataind]
+            axes[1].plot(
+                xData, yData, "d-", color=colors_to_use[dataind], label=legendnames[dataind]
+            )
+        axes[1].legend(loc="center left", bbox_to_anchor=(1, 0.5), fontsize="small")
 
-    # Add a single color bar on the side
-    cbar_ax = fig.add_axes([1, 0.15, 0.02, 0.7])  # Adjust the position and size as needed
-    cbar = fig.colorbar(im, cax=cbar_ax)
-    cbar.set_label("Z$(nm)$", fontsize=10)
+    axes[1].set_xlabel("Laser Sample Index (#)", fontsize=12, color="b")
+    axes[1].set_ylabel(ylabel, fontsize=12, color="b")
+    axes[1].set_title(f"Laser {title}", fontsize=13, color="b")
+    axes[1].grid(True)
+
+    # Set the same y-limits for both plots
+    ylim = axes[0].get_ylim()
+    axes[1].set_ylim(ylim)
+    # Ensure x-axis shows integer values
+    axes[1].xaxis.set_major_locator(plt.MultipleLocator(1))
+
+    if y_positions and border_colours:
+        for i in range(len(y_positions)):
+            axes[0].axhline(
+                y=y_positions[i], linestyle="--", color=border_colours[i], linewidth=1.5
+            )
 
     plt.tight_layout()
-    output_file = os.path.join(output_path, f"{campaign_name}_{waferID}_{cubeID}_f1_Raw_Data.png")
-    plt.savefig(output_file, dpi=imgqual, bbox_inches="tight")
+
+    # Save the figure
+    output_file = f"{output_path}/{campaign_name}_{filename_suffix}_Paired_Plot.png"
+    plt.savefig(output_file, dpi=imgqual)
 
 
-# Plot raw data for each dataset
-for dataind, dataset in enumerate(DATASETS):
-    waferID, cubeID = dataset.split("_CUBE_")
-    laserIDrange = laserIDranges[dataind]
+y_positions = [-200, -100, 100, 200]
+border_colours = ["#FFA500", "blue", "blue", "#FFA500"]
 
-    if DYNAMIC_ARRAYS:
-        rows = ROW_DYNAMIC[dataind]
-        cols = COLUMN_DYNAMIC[dataind]
-    else:
-        rows = ROWS
-        cols = COLS
+# YCrown Plot
+create_paired_plot(
+    [data[:, 0] for data in data_crowns],
+    DATASETS,
+    DESIGN_INFOS,
+    False,
+    OUTPUTPATH,
+    CAMPAIGN_NAME,
+    "YCrown (nm)",
+    "YCrown",
+    "YCrown",
+    IMGQUAL,
+    "rainbow",
+    y_positions,
+    border_colours,
+)
 
-    plot_raw_data(
-        data_raw[dataind],
-        waferID,
-        cubeID,
-        laserIDrange,
-        OUTPUTPATH,
-        CAMPAIGN_NAME,
-        rows,
-        cols,
-        ZLIM,
-        IMGQUAL,
-        laser_plotting_order[dataind],
-    )
+## XcrownP Plot
+# create_paired_plot(
+#     [data[:, 1] for data in data_crowns],
+#     DATASETS,
+#     DESIGN_INFOS,
+#     False,
+#     OUTPUTPATH,
+#     CAMPAIGN_NAME,
+#     "XCrown_P (nm)",
+#     "XCrown_P",
+#     "XCrownP",
+#     IMGQUAL,
+# )
 
-# data_ind = 0
-# plot_raw_data(data_raw[dataind], waferID, cubeID, laserIDrange, OUTPUTPATH, CAMPAIGN_NAME, rows, cols, ZLIM, IMGQUAL, laser_plotting_order[dataind])
-
-# %% [markdown]
-# ### Flattened Topography Plots
-
-
-# %%
-# --------------------------- PROCESSED Colour Map Plots --------------------------- #
-# Function to transform data_processed into a format similar to image_raw
-# Function to transform data_processed into a format similar to image_raw
-def transform_processed_data_to_image(data_processed, resolution):
-    x_min, x_max = np.min(data_processed[:, 0]), np.max(data_processed[:, 0])
-    y_min, y_max = np.min(data_processed[:, 1]), np.max(data_processed[:, 1])
-
-    x_size = int((x_max - x_min) / resolution) + 1
-    y_size = int((y_max - y_min) / resolution) + 1
-
-    transformed_data = np.full((x_size, y_size), np.nan)
-    for point in data_processed:
-        x, y, z = point
-        x_idx = int((x - x_min) / resolution)
-        y_idx = int((y - y_min) / resolution)
-        if 0 <= x_idx < x_size and 0 <= y_idx < y_size:
-            transformed_data[x_idx, y_idx] = z
-    return transformed_data.T
-
-
-# --------------------------- PROCESSED Colour Map Plots --------------------------- #
-def plot_processed_data(
-    data_processed,
-    waferID,
-    cubeID,
-    laserIDrange,
-    output_path,
-    campaign_name,
-    rows,
-    cols,
-    zlim_colour,
-    imgqual,
-    laser_plotting_order,
-    resolution,
-):
-    # Calculate the figure size dynamically based on the number of rows and columns
-    fig_width = cols * 1  # Adjust the multiplier as needed
-    fig_height = rows * 3  # Adjust the multiplier as needed
-
-    fig, axes = plt.subplots(rows, cols, figsize=(fig_width, fig_height))
-    fig.suptitle(
-        f"{waferID} {cubeID} - PROCESSED DATA COLOUR MAPS",
-        fontsize=40,
-        fontfamily="monospace",
-        fontweight="bold",
-        color="g",
-        y=1,
-    )
-
-    for plot_index in range(len(laserIDrange)):
-        row = plot_index // cols
-        col = plot_index % cols
-        ax = axes[row, col]
-
-        if plot_index < len(data_processed):
-            image = transform_processed_data_to_image(
-                data_processed[plot_index], resolution=resolution
-            )  # Transform processed data to image format
-            im = ax.imshow(image, cmap="jet", aspect="equal")  # Use the Z values for processed data
-
-            # Set the title based on the laser plotting order
-            laserIDind = laser_plotting_order[plot_index]
-            ax.set_title(f"{laserIDind + 1}", fontsize=13, color="b")
-
-            # Only add axis labels to the first subplot
-            if plot_index == 0:
-                ax.set_xlabel("X$(um)$")
-                ax.set_ylabel("Y$(um)$")
-            else:
-                ax.set_xticks([])
-                ax.set_yticks([])
-
-            im.set_clim([-zlim_colour, zlim_colour])
-
-            # Set xlims and ylims to exclude empty spaces
-            non_nan_indices = np.argwhere(~np.isnan(image))
-            if non_nan_indices.size > 0:
-                y_min, x_min = non_nan_indices.min(axis=0)
-                y_max, x_max = non_nan_indices.max(axis=0)
-                ax.set_xlim(x_min, x_max)
-                ax.set_ylim(y_max, y_min)  # Note: y-axis is inverted in images
-            else:
-                ax.set_xlim(0, image.shape[1])
-                ax.set_ylim(0, image.shape[0])
-        else:
-            ax.axis("off")
-
-    # Add a single color bar on the side
-    cbar_ax = fig.add_axes([1, 0.15, 0.02, 0.7])  # Adjust the position and size as needed
-    cbar = fig.colorbar(im, cax=cbar_ax)
-    cbar.set_label("Z$(nm)$", fontsize=10)
-
-    plt.tight_layout()
-    output_file = os.path.join(
-        output_path, f"{campaign_name}_{waferID}_{cubeID}_f2_Processed_Data.png"
-    )
-    plt.savefig(output_file, dpi=imgqual, bbox_inches="tight")
-
-
-# Example usage
-# Assuming data_processed is a list of arrays, each with shape (n, 3)
-# Assuming laser_plotting_order is a list of lists, each with the order of lasers for each dataset
-
-# Plot processed data for each dataset
-for dataind, dataset in enumerate(DATASETS):
-    waferID, cubeID = dataset.split("_CUBE_")
-    laserIDrange = laserIDranges[dataind]
-
-    if DYNAMIC_ARRAYS:
-        rows = ROW_DYNAMIC[dataind]
-        cols = COLUMN_DYNAMIC[dataind]
-    else:
-        rows = ROWS
-        cols = COLS
-
-    plot_processed_data(
-        data_processed[dataind],
-        waferID,
-        cubeID,
-        laserIDrange,
-        OUTPUTPATH,
-        CAMPAIGN_NAME,
-        rows,
-        cols,
-        ZLIM,
-        IMGQUAL,
-        laser_plotting_order[dataind],
-        resolution=1.0,
-    )
-
-# %% [markdown]
-# ### Single Laser Interactive 3D Plot
-
-# %%
-# ------------------------------------ 3d plot Specific Laser ------------------------------------ #
-
-import plotly.graph_objs as go
-import plotly.io as pio
-
-
-def plot_specific_processed_laser(data_processed, dataset, laser, zmult, datasetname):
-    # Extract the processed laser data for the specified laser from the specified dataset
-    processed_laser_data = data_processed[dataset - 1][laser - 1]
-
-    # Create a 3D scatter plot using Plotly for interactivity
-    scatter_plot = go.Scatter3d(
-        x=processed_laser_data[:, 0],
-        y=processed_laser_data[:, 1],
-        z=processed_laser_data[:, 2],
-        mode="markers",
-        marker=dict(
-            size=2,
-            color=processed_laser_data[:, 2],
-            colorscale="Jet",
-            colorbar=dict(title="Z (nm)"),
-        ),
-    )
-
-    # Calculate aspect ratio based on the range of data
-    x_range = np.ptp(processed_laser_data[:, 0])
-    y_range = np.ptp(processed_laser_data[:, 1])
-    z_range = np.ptp(processed_laser_data[:, 2])
-
-    layout = go.Layout(
-        title=f"Laser {laser} (levelled) from Dataset {datasetname}",
-        scene=dict(
-            xaxis=dict(title="X (μm)"),
-            yaxis=dict(title="Y (μm)"),
-            zaxis=dict(title="Z (nm)"),
-            aspectratio=dict(x=x_range * 0.5, y=y_range * 0.5, z=z_range * zmult * 0.5),
-            # ZMULT: will change how much the z height is multiplied to exaggerate height differences
-            # To see as Z is in nm, to see accurate relative variation set zmult = 0.001
-            camera=dict(
-                eye=dict(x=5000, y=5000, z=5000)
-                # Adjust the values to set the initial zoom level
-            ),
-        ),
-    )
-
-    fig = go.Figure(data=[scatter_plot], layout=layout)
-
-    # Show the interactive plot
-    pio.show(fig)
-
-
-# Example usage
-# Assuming data_processed is a list of arrays, each with shape (n, 3)
-# dataset_index and laser_index should be specified based on the desired dataset and laser
-
-# Example indices (STARTING FROM 1)
-dataset_index = 1
-laser_index = 1
-
-# Call the function to plot the specific processed laser data
-plot_specific_processed_laser(data_processed, dataset_index, laser_index, 0.1, "QDHIE_CUBE_161")
+## XcrownN Plot
+# create_paired_plot(
+#     [data[:, 2] for data in data_crowns],
+#     DATASETS,
+#     DESIGN_INFOS,
+#     False,
+#     OUTPUTPATH,
+#     CAMPAIGN_NAME,
+#     "XCrown_N (nm)",
+#     "XCrown_N",
+#     "XCrownN",
+#     IMGQUAL,
+# )
 
 # %% [markdown]
 # ### Combined Profile Plot
@@ -1106,6 +992,384 @@ plot_all_crown_profiles(
 )
 
 # %% [markdown]
+# ### Raw Topography Plots
+
+
+# %%
+# --------------------------- RAW Colour Map Plots --------------------------- #
+def plot_raw_data(
+    data_raw,
+    waferID,
+    cubeID,
+    laserIDrange,
+    output_path,
+    campaign_name,
+    rows,
+    cols,
+    zlim_colour,
+    imgqual,
+    laser_plotting_order,
+):
+    # Calculate the figure size dynamically based on the number of rows and columns
+    fig_width = cols * 1  # Adjust the multiplier as needed
+    fig_height = rows * 3  # Adjust the multiplier as needed
+
+    fig, axes = plt.subplots(rows, cols, figsize=(fig_width, fig_height))
+    fig.suptitle(
+        f"{waferID} {cubeID} - RAW DATA COLOUR MAPS",
+        fontsize=40,
+        fontfamily="monospace",
+        fontweight="bold",
+        color="g",
+        y=1,
+    )
+
+    for plot_index in range(len(laserIDrange)):
+        row = plot_index // cols
+        col = plot_index % cols
+        ax = axes[row, col]
+
+        if plot_index < len(data_raw):
+            image = data_raw[plot_index]
+            im = ax.imshow(image, cmap="jet", aspect="equal")
+
+            # Set the title based on the laser plotting order
+            laserIDind = laser_plotting_order[plot_index]
+            ax.set_title(f"{laserIDind + 1}", fontsize=13, color="b")
+
+            # Only add axis labels to the first subplot
+            if plot_index == 0:
+                ax.set_xlabel("Pixel")
+                ax.set_ylabel("Pixel")
+            else:
+                ax.set_xticks([])
+                ax.set_yticks([])
+
+            im.set_clim([-zlim_colour, zlim_colour])
+
+            # Set xlims and ylims to exclude empty spaces
+            non_nan_indices = np.argwhere(~np.isnan(image))
+            y_min, x_min = non_nan_indices.min(axis=0)
+            y_max, x_max = non_nan_indices.max(axis=0)
+            ax.set_xlim(x_min, x_max)
+            ax.set_ylim(y_max, y_min)  # Note: y-axis is inverted in images
+        else:
+            ax.axis("off")
+
+    # Add a single color bar on the side
+    cbar_ax = fig.add_axes([1, 0.15, 0.02, 0.7])  # Adjust the position and size as needed
+    cbar = fig.colorbar(im, cax=cbar_ax)
+    cbar.set_label("Z$(nm)$", fontsize=10)
+
+    plt.tight_layout()
+    output_file = os.path.join(output_path, f"{campaign_name}_{waferID}_{cubeID}_f1_Raw_Data.png")
+    plt.savefig(output_file, dpi=imgqual, bbox_inches="tight")
+
+
+# Plot raw data for each dataset
+for dataind, dataset in enumerate(DATASETS):
+    waferID, cubeID = dataset.split("_CUBE_")
+    laserIDrange = laserIDranges[dataind]
+
+    if DYNAMIC_ARRAYS:
+        rows = ROW_DYNAMIC[dataind]
+        cols = COLUMN_DYNAMIC[dataind]
+    else:
+        rows = ROWS
+        cols = COLS
+
+    plot_raw_data(
+        data_raw[dataind],
+        waferID,
+        cubeID,
+        laserIDrange,
+        OUTPUTPATH,
+        CAMPAIGN_NAME,
+        rows,
+        cols,
+        ZLIM,
+        IMGQUAL,
+        laser_plotting_order[dataind],
+    )
+
+# data_ind = 0
+# plot_raw_data(data_raw[dataind], waferID, cubeID, laserIDrange, OUTPUTPATH, CAMPAIGN_NAME, rows, cols, ZLIM, IMGQUAL, laser_plotting_order[dataind])
+
+# %% [markdown]
+# ### Flattened / Aligned Topography Plots
+
+
+# %%
+# --------------------------- PROCESSED Colour Map Plots --------------------------- #
+# Function to transform data_processed into a format similar to image_raw
+# Function to transform data_processed into a format similar to image_raw
+def transform_processed_data_to_image(data_processed, resolution):
+    x_min, x_max = np.min(data_processed[:, 0]), np.max(data_processed[:, 0])
+    y_min, y_max = np.min(data_processed[:, 1]), np.max(data_processed[:, 1])
+
+    x_size = int((x_max - x_min) / resolution) + 1
+    y_size = int((y_max - y_min) / resolution) + 1
+
+    transformed_data = np.full((x_size, y_size), np.nan)
+    for point in data_processed:
+        x, y, z = point
+        x_idx = int((x - x_min) / resolution)
+        y_idx = int((y - y_min) / resolution)
+        if 0 <= x_idx < x_size and 0 <= y_idx < y_size:
+            transformed_data[x_idx, y_idx] = z
+    return transformed_data.T
+
+
+# --------------------------- PROCESSED Colour Map Plots --------------------------- #
+def plot_processed_data(
+    data_processed,
+    waferID,
+    cubeID,
+    laserIDrange,
+    output_path,
+    campaign_name,
+    rows,
+    cols,
+    zlim_colour,
+    imgqual,
+    laser_plotting_order,
+    resolution,
+):
+    # Calculate the figure size dynamically based on the number of rows and columns
+    fig_width = cols * 1  # Adjust the multiplier as needed
+    fig_height = rows * 3  # Adjust the multiplier as needed
+
+    fig, axes = plt.subplots(rows, cols, figsize=(fig_width, fig_height))
+    fig.suptitle(
+        f"{waferID} {cubeID} - PROCESSED DATA COLOUR MAPS",
+        fontsize=40,
+        fontfamily="monospace",
+        fontweight="bold",
+        color="g",
+        y=1,
+    )
+
+    for plot_index in range(len(laserIDrange)):
+        row = plot_index // cols
+        col = plot_index % cols
+        ax = axes[row, col]
+
+        if plot_index < len(data_processed):
+            image = transform_processed_data_to_image(
+                data_processed[plot_index], resolution=resolution
+            )  # Transform processed data to image format
+            im = ax.imshow(image, cmap="jet", aspect="equal")  # Use the Z values for processed data
+
+            # Set the title based on the laser plotting order
+            laserIDind = laser_plotting_order[plot_index]
+            ax.set_title(f"{laserIDind + 1}", fontsize=13, color="b")
+
+            # Only add axis labels to the first subplot
+            if plot_index == 0:
+                ax.set_xlabel("X$(um)$")
+                ax.set_ylabel("Y$(um)$")
+            else:
+                ax.set_xticks([])
+                ax.set_yticks([])
+
+            im.set_clim([-zlim_colour, zlim_colour])
+
+            # Set xlims and ylims to exclude empty spaces
+            non_nan_indices = np.argwhere(~np.isnan(image))
+            if non_nan_indices.size > 0:
+                y_min, x_min = non_nan_indices.min(axis=0)
+                y_max, x_max = non_nan_indices.max(axis=0)
+                ax.set_xlim(x_min, x_max)
+                ax.set_ylim(y_max, y_min)  # Note: y-axis is inverted in images
+            else:
+                ax.set_xlim(0, image.shape[1])
+                ax.set_ylim(0, image.shape[0])
+        else:
+            ax.axis("off")
+
+    # Add a single color bar on the side
+    cbar_ax = fig.add_axes([1, 0.15, 0.02, 0.7])  # Adjust the position and size as needed
+    cbar = fig.colorbar(im, cax=cbar_ax)
+    cbar.set_label("Z$(nm)$", fontsize=10)
+
+    plt.tight_layout()
+    output_file = os.path.join(
+        output_path, f"{campaign_name}_{waferID}_{cubeID}_f2_Processed_Data.png"
+    )
+    plt.savefig(output_file, dpi=imgqual, bbox_inches="tight")
+
+
+# Example usage
+# Assuming data_processed is a list of arrays, each with shape (n, 3)
+# Assuming laser_plotting_order is a list of lists, each with the order of lasers for each dataset
+
+# Plot processed data for each dataset
+for dataind, dataset in enumerate(DATASETS):
+    waferID, cubeID = dataset.split("_CUBE_")
+    laserIDrange = laserIDranges[dataind]
+
+    if DYNAMIC_ARRAYS:
+        rows = ROW_DYNAMIC[dataind]
+        cols = COLUMN_DYNAMIC[dataind]
+    else:
+        rows = ROWS
+        cols = COLS
+
+    plot_processed_data(
+        data_processed[dataind],
+        waferID,
+        cubeID,
+        laserIDrange,
+        OUTPUTPATH,
+        CAMPAIGN_NAME,
+        rows,
+        cols,
+        ZLIM,
+        IMGQUAL,
+        laser_plotting_order[dataind],
+        resolution=1.0,
+    )
+
+# %% [markdown]
+# ### Angle Plots
+
+# %%
+# ------------------------- Plane Angles Plotted along with Crown Height ------------------------- #
+
+
+# Function to generate a combined angle plot for a set of data
+# Function to generate a combined angle plot for a set of data
+def generate_combined_angle_plot(
+    data_crowns,
+    angle_matrix,
+    waferID,
+    cubeID,
+    location_label,
+    output_path,
+    campaign_name,
+    input_lims=None,
+    imgqual=300,
+):
+    # Create a new figure for each dataset
+    fig, ax1 = plt.subplots(figsize=(14, 7))
+
+    # Plot angles for each laserID
+    ax1.set_xlabel("Laser Sample Index (#)", fontsize=12, color="k")
+    ax1.set_ylabel("Angles (degrees)", fontsize=12, color="k")
+    ax1.plot(
+        range(1, len(angle_matrix) + 1), angle_matrix[:, 3], "o-", color="r", label="Yaw Angle"
+    )
+    ax1.plot(
+        range(1, len(angle_matrix) + 1), angle_matrix[:, 1], "s-", color="g", label="Roll Angle"
+    )
+    ax1.plot(
+        range(1, len(angle_matrix) + 1), angle_matrix[:, 2], "^-", color="m", label="Pitch Angle"
+    )
+    ax1.tick_params(axis="y", labelcolor="k")
+
+    # Create a second y-axis to plot the crown heights
+    ax2 = ax1.twinx()
+    ax2.set_ylabel("Crown Height (nm)", fontsize=12, color="b")
+    ax2.plot(
+        range(1, len(data_crowns) + 1),
+        data_crowns[:, 0],
+        "d",
+        color="b",
+        label="Crown Height",
+        linestyle="dashdot",
+        alpha=0.3,
+    )
+    ax2.tick_params(axis="y", labelcolor="b")
+    ax2.set_ylim(input_lims)
+
+    # Add horizontal lines for angle guardrails
+    y_positions = [-1, 1]
+    border_colours = ["black", "black"]
+    annotations = ["Angle Variation Guardrail", "Angle Variation Guardrail"]
+    for i in range(len(y_positions)):
+        ax1.axhline(y=y_positions[i], linestyle="--", color=border_colours[i], linewidth=1.5)
+        ax1.text(
+            len(data_crowns) - 3,
+            y_positions[i] + 0.03,
+            annotations[i],
+            fontsize=10,
+            color=border_colours[i],
+        )
+
+    # Calculate R^2 values
+    r_squared_roll = calculate_r_squared(data_crowns[:, 0], angle_matrix[:, 1])
+    r_squared_pitch = calculate_r_squared(data_crowns[:, 0], angle_matrix[:, 2])
+    r_squared_yaw = calculate_r_squared(data_crowns[:, 0], angle_matrix[:, 3])
+
+    # Annotate R^2 values on the plot
+    ax1.text(
+        1.05,
+        0.98,
+        f"Crown-Angle $R^2$ (Roll) = {r_squared_roll:.2f}",
+        transform=ax1.transAxes,
+        fontsize=12,
+        verticalalignment="top",
+        color="g",
+    )
+    ax1.text(
+        1.05,
+        0.93,
+        f"Crown-Angle $R^2$ (Pitch) = {r_squared_pitch:.2f}",
+        transform=ax1.transAxes,
+        fontsize=12,
+        verticalalignment="top",
+        color="m",
+    )
+    ax1.text(
+        1.05,
+        0.88,
+        f"Crown-Angle $R^2$ (Yaw) = {r_squared_yaw:.2f}",
+        transform=ax1.transAxes,
+        fontsize=12,
+        verticalalignment="top",
+        color="r",
+    )
+
+    # Add titles and labels
+    plt.title(
+        f"Crown Heights and Angles for {waferID} ({location_label} cube, {cubeID})",
+        fontsize=13,
+        color="b",
+    )
+
+    # Add legends
+    fig.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+
+    # Ensure x-axis shows integer values
+    ax1.xaxis.set_major_locator(plt.MultipleLocator(1))
+    ax1.grid(True)
+
+    # Save the figure
+    output_file = os.path.join(
+        output_path, f"{campaign_name}_{waferID}_{cubeID}_Combined_Angle_Plot.png"
+    )
+    plt.savefig(output_file, dpi=imgqual)
+    # plt.close(fig)
+
+
+# Call the function for every dataset's angle data
+for dataind in range(len(DATASETS)):
+    waferID = waferIDs[dataind]
+    cubeID = cubeIDs[dataind]
+    loc = location_labels[dataind]
+    generate_combined_angle_plot(
+        data_crowns[dataind],
+        angle_matrix[dataind],
+        waferID,
+        cubeID,
+        loc,
+        OUTPUTPATH,
+        CAMPAIGN_NAME,
+        SUMMARYLIMS,
+        IMGQUAL,
+    )
+
+# %% [markdown]
 # ### Individal Profile Plots per Dataset
 
 # %%
@@ -1173,182 +1437,70 @@ for dataind in range(len(DATASETS)):
     )
 
 # %% [markdown]
-# ### Crown Height Box Plots
+# ### Single Laser Interactive 3D Plot
 
 # %%
-# ------------------------------------- Crown Height Box Plot ------------------------------------ #
+# ------------------------------------ 3d plot Specific Laser ------------------------------------ #
+
+import plotly.graph_objs as go
+import plotly.io as pio
 
 
-# Function to create paired box plots and crown height per laser index plots for a single set of crown data
-def create_paired_plot(
-    crown_data,
-    datasets,
-    designinfos,
-    group_by_design_info,
-    output_path,
-    campaign_name,
-    ylabel,
-    title,
-    filename_suffix,
-    imgqual,
-    colour_set="rainbow",
-    y_positions=False,
-    border_colours=False,
-):
-    # Define labels and colors
-    waferIDs = [dataset.split("_CUBE_")[0] for dataset in datasets]
-    cubeIDs = [dataset.split("_CUBE_")[1] for dataset in datasets]
-    unique_design_infos = list(set(designinfos))
-    legendnames = (
-        unique_design_infos
-        if group_by_design_info
-        else [f"{waferID} {cube_loc}" for waferID, cube_loc in zip(waferIDs, location_labels)]
+def plot_specific_processed_laser(data_processed, dataset, laser, zmult, datasetname):
+    # Extract the processed laser data for the specified laser from the specified dataset
+    processed_laser_data = data_processed[dataset - 1][laser - 1]
+
+    # Create a 3D scatter plot using Plotly for interactivity
+    scatter_plot = go.Scatter3d(
+        x=processed_laser_data[:, 0],
+        y=processed_laser_data[:, 1],
+        z=processed_laser_data[:, 2],
+        mode="markers",
+        marker=dict(
+            size=2,
+            color=processed_laser_data[:, 2],
+            colorscale="Jet",
+            colorbar=dict(title="Z (nm)"),
+        ),
     )
-    num_datasets = len(datasets)
 
-    if group_by_design_info:
-        colors_to_use = generate_unique_colors(len(unique_design_infos), colour_set)
-        design_info_indices = {
-            design_info: idx for idx, design_info in enumerate(unique_design_infos)
-        }
-    else:
-        colors_to_use = generate_unique_colors(num_datasets, colour_set)
+    # Calculate aspect ratio based on the range of data
+    x_range = np.ptp(processed_laser_data[:, 0])
+    y_range = np.ptp(processed_laser_data[:, 1])
+    z_range = np.ptp(processed_laser_data[:, 2])
 
-    # Box Plot and Crown Height per Laser Index Plot
-    fig, axes = plt.subplots(1, 2, figsize=(14, 7))
+    layout = go.Layout(
+        title=f"Laser {laser} (levelled) from Dataset {datasetname}",
+        scene=dict(
+            xaxis=dict(title="X (μm)"),
+            yaxis=dict(title="Y (μm)"),
+            zaxis=dict(title="Z (nm)"),
+            aspectratio=dict(x=x_range * 0.5, y=y_range * 0.5, z=z_range * zmult * 0.5),
+            # ZMULT: will change how much the z height is multiplied to exaggerate height differences
+            # To see as Z is in nm, to see accurate relative variation set zmult = 0.001
+            camera=dict(
+                eye=dict(x=5000, y=5000, z=5000)
+                # Adjust the values to set the initial zoom level
+            ),
+        ),
+    )
 
-    # Box Plot
-    yData = []
-    group = []
-    colorIndex = []
+    fig = go.Figure(data=[scatter_plot], layout=layout)
 
-    if group_by_design_info:
-        for design_ind in range(len(unique_design_infos)):
-            design_info = unique_design_infos[design_ind]
-            for dataind in range(len(datasets)):
-                if designinfos[dataind] == design_info:
-                    yData.extend(crown_data[dataind])
-                    group.extend(
-                        [design_ind + 1] * len(crown_data[dataind])
-                    )  # Adjusted to start from 1
-                    colorIndex.extend([design_ind] * len(crown_data[dataind]))
-        box_data = [yData[i :: len(unique_design_infos)] for i in range(len(unique_design_infos))]
-        box = axes[0].boxplot(box_data, patch_artist=True)
-        for patch, color in zip(box["boxes"], colors_to_use):
-            patch.set_facecolor(color)
-    else:
-        for dataind, dataset in enumerate(datasets):
-            yData.append(crown_data[dataind])
-        box = axes[0].boxplot(yData, patch_artist=True)
-        for patch, color in zip(box["boxes"], colors_to_use):
-            patch.set_facecolor(color)
-
-    axes[0].set_xticks(range(1, len(legendnames) + 1))
-    axes[0].set_xticklabels(legendnames, rotation=45)
-    axes[0].set_ylabel(ylabel, fontsize=12, color="b")
-    axes[0].set_title(f"Laser {title} Distribution", fontsize=13, color="b")
-    axes[0].yaxis.grid(True)
-    axes[0].xaxis.grid(True, which="both", linestyle="--", linewidth=0.7)
-
-    if y_positions and border_colours:
-        for i in range(len(y_positions)):
-            axes[0].axhline(
-                y=y_positions[i], linestyle="--", color=border_colours[i], linewidth=1.5
-            )
-
-    # Crown Height per Laser Index Plot
-    if group_by_design_info:
-        plotted_design_infos = set()
-        for dataind in range(len(datasets)):
-            design_info = designinfos[dataind]
-            color_idx = design_info_indices[design_info]
-            xData = np.arange(1, len(crown_data[dataind]) + 1)
-            yData = crown_data[dataind]
-            if design_info not in plotted_design_infos:
-                axes[1].plot(
-                    xData, yData, "d-", color=colors_to_use[color_idx], label=legendnames[color_idx]
-                )
-                plotted_design_infos.add(design_info)
-            else:
-                axes[1].plot(xData, yData, "d-", color=colors_to_use[color_idx])
-
-        handles, labels = axes[1].get_legend_handles_labels()
-        by_label = dict(zip(labels, handles))
-        axes[1].legend(by_label.values(), by_label.keys())
-
-    else:
-        for dataind in range(len(datasets)):
-            xData = np.arange(1, len(crown_data[dataind]) + 1)
-            yData = crown_data[dataind]
-            axes[1].plot(
-                xData, yData, "d-", color=colors_to_use[dataind], label=legendnames[dataind]
-            )
-        axes[1].legend(loc="center left", bbox_to_anchor=(1, 0.5), fontsize="small")
-
-    axes[1].set_xlabel("Laser Sample Index (#)", fontsize=12, color="b")
-    axes[1].set_ylabel(ylabel, fontsize=12, color="b")
-    axes[1].set_title(f"Laser {title}", fontsize=13, color="b")
-    axes[1].grid(True)
-
-    # Set the same y-limits for both plots
-    ylim = axes[0].get_ylim()
-    axes[1].set_ylim(ylim)
-
-    if y_positions and border_colours:
-        for i in range(len(y_positions)):
-            axes[0].axhline(
-                y=y_positions[i], linestyle="--", color=border_colours[i], linewidth=1.5
-            )
-
-    plt.tight_layout()
-
-    # Save the figure
-    output_file = f"{output_path}/{campaign_name}_{filename_suffix}_Paired_Plot.png"
-    plt.savefig(output_file, dpi=imgqual)
+    # Show the interactive plot
+    pio.show(fig)
 
 
-y_positions = [-200, -100, 100, 200]
-border_colours = ["#FFA500", "blue", "blue", "#FFA500"]
+# Example usage
+# Assuming data_processed is a list of arrays, each with shape (n, 3)
+# dataset_index and laser_index should be specified based on the desired dataset and laser
 
-create_paired_plot(
-    [data[:, 0] for data in data_crowns],
-    DATASETS,
-    DESIGN_INFOS,
-    False,
-    OUTPUTPATH,
-    CAMPAIGN_NAME,
-    "YCrown (nm)",
-    "YCrown",
-    "YCrown",
-    IMGQUAL,
-    "rainbow",
-    y_positions,
-    border_colours,
-)
-create_paired_plot(
-    [data[:, 1] for data in data_crowns],
-    DATASETS,
-    DESIGN_INFOS,
-    False,
-    OUTPUTPATH,
-    CAMPAIGN_NAME,
-    "XCrown_P (nm)",
-    "XCrown_P",
-    "XCrownP",
-    IMGQUAL,
-)
-create_paired_plot(
-    [data[:, 2] for data in data_crowns],
-    DATASETS,
-    DESIGN_INFOS,
-    False,
-    OUTPUTPATH,
-    CAMPAIGN_NAME,
-    "XCrown_N (nm)",
-    "XCrown_N",
-    "XCrownN",
-    IMGQUAL,
-)
+# Example indices (STARTING FROM 1)
+dataset_index = 1
+laser_index = 1
+
+# Call the function to plot the specific processed laser data
+plot_specific_processed_laser(data_processed, dataset_index, laser_index, 0.1, "QDHIE_CUBE_161")
 
 # %% [markdown]
 # ### Scatter Plot
@@ -1453,9 +1605,3 @@ generate_scatter_plot(
     h_labels,
     DATASETS,
 )
-
-# %% [markdown]
-# ### Angle Plots
-
-# %%
-# ------------------------- Plane Angles Plotted along with Crown Height ------------------------- #

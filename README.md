@@ -45,6 +45,12 @@ The script generates various output files, including:
 - **Delta Threshold**: `3 nm`
 - **Anomaly Threshold**: `25 nm`
 
+Recycle Data: 
+- This section uses any previously exported "Crown Number" and "Crown Profile" excel data. You can specify the path it checks. 
+- It will check any preivously exported that matches the currently analysed datasets, if they do match it instead uses the old data than regenerating the new data.
+- This is to save analysis time
+- DO NOT USE THIS IF YOU WANT TO USE MAIN PROCESSING (it overrwrites this section)
+- THIS SECTION DOES NOT GENERATE LOAD IMAGES, SO CANNOT GENERATE TOPOGRAPHY PLOTS
 
 
 1st released version: 'WykoDataProcessor_Laser_Stamps_FastAuto_PSI_v1', as a 700 line matlab script.
