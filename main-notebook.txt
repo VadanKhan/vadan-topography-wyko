@@ -289,6 +289,103 @@ for dataind in range(NUMDATA):
 
 processedMessages = []
 
+
+# %%
+# ----------------------------------------- RECYCLE DATA ----------------------------------------- #
+# Function to check if a file exists and load it into a variable
+def load_excel_file(file_path):
+    if os.path.exists(file_path):
+        return pd.read_excel(file_path, engine="openpyxl")
+    return None
+
+
+# Check and load crown number export data
+crown_number_data = {}
+for dataset in DATASETS:
+    waferID, cubeID = dataset.split("_CUBE_")
+    file_name = f"{waferID}_{cubeID}_Crown_Data.xlsx"
+    file_path = os.path.join(INPUTPATH, file_name)
+    crown_number_data[dataset] = load_excel_file(file_path)
+
+# Check and load crown profile export data
+crown_profile_data = {}
+for dataset in DATASETS:
+    waferID, cubeID = dataset.split("_CUBE_")
+    file_name = f"{dataset}_All_YCrown_Profiles.xlsx"
+    file_path = os.path.join(INPUTPATH, file_name)
+    crown_profile_data[dataset] = load_excel_file(file_path)
+
+# Print loaded data for verification
+print("Loaded Crown Number Data:")
+for dataset, data in crown_number_data.items():
+    if data is not None:
+        print(f"{dataset}: Data loaded successfully.")
+    else:
+        print(f"{dataset}: No data found.")
+
+print("\nLoaded Crown Profile Data:")
+for dataset, data in crown_profile_data.items():
+    if data is not None:
+        print(f"{dataset}: Data loaded successfully.")
+    else:
+        print(f"{dataset}: No data found.")
+
+# Recycling the loaded data into appropriate variables
+data_crowns = []
+angle_matrix = []
+data_crownprofiles = []
+data_xcrownprofiles = []
+
+for dataset in DATASETS:
+    if crown_number_data[dataset] is not None:
+        # Extracting crown numbers and angles from the loaded data
+        df_crown_number = crown_number_data[dataset]
+        data_crowns.append(df_crown_number[["YCrown", "XCrown_P", "XCrown_N"]].values)
+        angle_matrix.append(df_crown_number[["Theta_z", "Roll", "Pitch", "Yaw"]].values)
+    else:
+        # Initialize with empty lists if no data found
+        data_crowns.append([])
+        angle_matrix.append([])
+
+    if crown_profile_data[dataset] is not None:
+        # Extracting crown profiles from the loaded data
+        df_crown_profile = crown_profile_data[dataset]
+        laser_ids = df_crown_profile["LaserID"].unique()
+
+        # Initialize lists to hold profiles for each laser
+        profiles_ycrown = []
+        profiles_xcrown = []
+
+        for laser_id in laser_ids:
+            profile_ycrown = df_crown_profile[df_crown_profile["LaserID"] == laser_id][
+                ["Position (um)", "Height (nm)"]
+            ].values
+            profiles_ycrown.append(profile_ycrown)
+            profile_xcrown = df_crown_profile[df_crown_profile["LaserID"] == laser_id][
+                ["Position (um)", "Height (nm)"]
+            ].values
+            profiles_xcrown.append(profile_xcrown)
+
+        data_crownprofiles.append(profiles_ycrown)
+        data_xcrownprofiles.append(profiles_xcrown)
+    else:
+        # Initialize with empty lists if no data found
+        data_crownprofiles.append([])
+        data_xcrownprofiles.append([])
+
+# Print recycled data for verification
+print("\nRecycled Crown Numbers and Angles:")
+for dataset, crowns, angles in zip(DATASETS, data_crowns, angle_matrix):
+    print(f"{dataset}:")
+    print("Crowns:", crowns)
+    print("Angles:", angles)
+
+print("\nRecycled Crown Profiles:")
+for dataset, profiles_y, profiles_x in zip(DATASETS, data_crownprofiles, data_xcrownprofiles):
+    print(f"{dataset}:")
+    print("YCrown Profiles:", profiles_y)
+    print("XCrown Profiles:", profiles_x)
+
 # %%
 #                       MAIN PROCESSING: Iterate Processing Loop over all input Data                       #
 # ---------------------------------------------------------------------------- #
