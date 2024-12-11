@@ -15,8 +15,10 @@ def IQR_filtering(data):
     Q1 = np.nanpercentile(data, 25)
     Q3 = np.nanpercentile(data, 75)
     IQR = Q3 - Q1
-    lower_bound = Q1 - 1.5 * IQR
-    upper_bound = Q3 + 1.5 * IQR
+    OUTLIER_THRESHOLD = 3  # CHANGE THIS TO CHANGE THE SENSITIVITY OF OUTLIER FILTERING.
+    # STATISTICAL CONVENTIONS GENERALLY PLACES THERSHOLD AT 1.5
+    lower_bound = Q1 - OUTLIER_THRESHOLD * IQR
+    upper_bound = Q3 + OUTLIER_THRESHOLD * IQR
     filtered_data = data[(data >= lower_bound) & (data <= upper_bound)]
     outliers = np.where((data < lower_bound) | (data > upper_bound))[0]
     return filtered_data, outliers
