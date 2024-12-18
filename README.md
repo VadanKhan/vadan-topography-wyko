@@ -97,9 +97,12 @@ To use Poetry, you first need to install it. You can do this by following the in
     ```sh
     pipx install poetry
 2. **Add to PATH**
-3. **Verify**
+3. **Verify**:
     ```sh
     poetry --version
+3. **Configure Poetry to create virtual environments within the project directory** (recommended):
+    ```sh
+    poetry config virtualenvs.in-project true
 ### Installing Dependencies
 
 Once Poetry is installed, you can use it to install the dependencies listed in your `pyproject.toml` file. Here’s how you can do it:
