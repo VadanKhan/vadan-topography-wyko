@@ -80,6 +80,39 @@ This script processes data files with the extension `.opd`, which are data forma
 - **DO NOT USE THIS IF YOU WANT TO USE MAIN PROCESSING** (it overwrites this section).
 - **THIS SECTION DOES NOT GENERATE FULL TOPOGRAPHY IMAGES, SO CANNOT GENERATE TOPOGRAPHY PLOTS**.
 
+## Virtual Environments (using poetry)
+
+Poetry is a dependency management and packaging tool for Python. It helps you manage your project's dependencies, build your project, and publish it. One of the key features of Poetry is its ability to create and manage virtual environments.
+
+**TO AVOID USING VIRTUAL ENVIRONMENTS: INSTALL ALL THE PACKAGES IN THE "pyproject.toml" TO YOUR BASE PYTHON** (with `pip install`)
+
+### What is a Virtual Environment?
+
+A virtual environment is an isolated environment that allows you to manage dependencies for your project separately from your system-wide Python installation. This ensures that your project has access to the specific versions of libraries it needs without interfering with other projects or system tools.
+
+### Setting Up Poetry
+
+To use Poetry, you first need to install it. You can do this by following the instructions on the [Poetry installation page](https://python-poetry.org/docs/#installation).
+1. **Install Poetry**:
+    ```sh
+    pipx install poetry
+2. **Add to PATH**
+3. **Verify**
+    ```sh
+    poetry --version
+### Installing Dependencies
+
+Once Poetry is installed, you can use it to install the dependencies listed in your `pyproject.toml` file. Here’s how you can do it:
+
+1. **Navigate to your project directory**:
+   ```sh
+   cd path/to/your/project
+2. **Install the dependencies:**:
+   ```sh
+   poetry install
+3. **Activating the Virtual Environment:**:
+   ```sh
+   poetry shell
 ## Version History
 - 1st released version: 'WykoDataProcessor_Laser_Stamps_FastAuto_PSI_v1.m', as a 700 line matlab script.
 on July 25, 2024.
