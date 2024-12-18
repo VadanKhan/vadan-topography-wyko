@@ -82,9 +82,9 @@ This script processes data files with the extension `.opd`, which are data forma
 
 ## Virtual Environments (using poetry)
 
-Poetry is a dependency management and packaging tool for Python. It helps you manage your project's dependencies, build your project, and publish it. One of the key features of Poetry is its ability to create and manage virtual environments.
+**NB: TO AVOID USING VIRTUAL ENVIRONMENTS: INSTALL ALL THE PACKAGES IN THE "pyproject.toml" TO YOUR BASE PYTHON** (with `pip install`)
 
-**TO AVOID USING VIRTUAL ENVIRONMENTS: INSTALL ALL THE PACKAGES IN THE "pyproject.toml" TO YOUR BASE PYTHON** (with `pip install`)
+Poetry is a dependency management and packaging tool for Python. It helps you manage your project's dependencies, build your project, and publish it. One of the key features of Poetry is its ability to create and manage virtual environments.
 
 ### What is a Virtual Environment?
 
