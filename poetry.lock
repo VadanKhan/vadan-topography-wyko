@@ -2827,12 +2827,12 @@ tests = ["cython", "littleutils", "pygments", "pytest", "typeguard"]
 
 [[package]]
 name = "surfalize"
-version = "0.13.0"
+version = "0.13.2"
 description = "A python module to analyze surface roughness"
 optional = false
-python-versions = ">=3.6"
+python-versions = ">=3.9"
 files = [
-    {file = "surfalize-0.13.0-py3-none-any.whl", hash = "sha256:91a22ccb4c5e8f3ae332bf119db0389cb7905c55e44cf19647a33fb8713ae207"},
+    {file = "surfalize-0.13.2-py3-none-any.whl", hash = "sha256:9508e42dd7937118dc3932a741d785c8b307b6c56d9bdcce20f82e912a44e7ee"},
 ]
 
 [package.dependencies]

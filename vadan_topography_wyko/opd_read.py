@@ -75,7 +75,7 @@ def read_wyko_opd(filename):
     # print(Nbytes_data_per_pixel)
 
     # Move the index forward by 6 bytes to the start of the pixel data
-    ind_main += 6
+    ind_main += 0
 
     # Initialize an array to hold the pixel data
     pixeldata = np.zeros(Xsize * Ysize, dtype=np.float32)
@@ -98,6 +98,7 @@ def read_wyko_opd(filename):
 
     # Calculate the raw image data using the wavelength parameter
     VSIWavelength = ParametersValue["Wavelength"]
+    # Scale by wavelength
     image_raw = np.reshape(pixeldata, (Xsize, Ysize)) * VSIWavelength
     -np.nanmean(
         pixeldata
