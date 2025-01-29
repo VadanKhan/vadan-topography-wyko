@@ -14,8 +14,9 @@ def read_wyko_opd(filename):
     E2 = codecs.encode(E.decode("ISO-8859-1"), "ISO-8859-1")
 
     # Find the first instance of the word 'Directory'
-    ind = E2.find(b"Directory")
-    # print(ind)
+    ind_meta = E2.find(b"Directory")
+    ind_dict = ind_meta
+    # print(ind_meta)
 
     # Initialize variables
     Directorybytes = 6002
@@ -24,16 +25,16 @@ def read_wyko_opd(filename):
     BLOCKS = []
 
     # Parse the directory
-    while ind + 21 <= Directorybytes:
+    while ind_meta + 21 <= Directorybytes:
         block = {
-            "name": E2[ind : ind + 16].decode("ISO-8859-1"),
-            "type": struct.unpack("h", E2[ind + 16 : ind + 18])[0],
-            "Length": struct.unpack("i", E2[ind + 18 : ind + 22])[0],
-            "BlockTail": struct.unpack("h", E2[ind + 22 : ind + 24])[0],
+            "name": E2[ind_meta : ind_meta + 16].decode("ISO-8859-1"),
+            "type": struct.unpack("h", E2[ind_meta + 16 : ind_meta + 18])[0],
+            "Length": struct.unpack("i", E2[ind_meta + 18 : ind_meta + 22])[0],
+            "BlockTail": struct.unpack("h", E2[ind_meta + 22 : ind_meta + 24])[0],
         }
         BLOCKS.append(block)
         BlockID += 1
-        ind += Block_len
+        ind_meta += Block_len
 
     # Extract parameters
     Parameters = ["Pixel_size", "Wavelength"]
@@ -47,10 +48,10 @@ def read_wyko_opd(filename):
 
                 # Sum the lengths of all blocks before the current block
                 # NOTE THAT THIS ADDS 2, NOT 3.
-                ind = 2 + sum(b["Length"] for b in BLOCKS[:current_block_index])
+                ind_meta = 2 + sum(b["Length"] for b in BLOCKS[:current_block_index])
 
                 # Extract the raw bytes
-                raw_bytes = E2[ind : ind + block["Length"]]
+                raw_bytes = E2[ind_meta : ind_meta + block["Length"]]
                 ParametersValue[param] = struct.unpack("f", raw_bytes)[0]
 
                 # Print the block, raw bytes, and block index for debugging
@@ -60,21 +61,21 @@ def read_wyko_opd(filename):
                 break
 
     # Read RAW_DATA
-    # Calculate the starting index for reading raw data by summing the lengths of the first three blocks
-    ind = 2 + BLOCKS[0]["Length"] + BLOCKS[1]["Length"] + BLOCKS[2]["Length"]
-    # print(ind)
+    # Calculate the starting index for reading raw data by summing the lengths of the first three
+    # blocks
+    ind_main = ind_dict + BLOCKS[0]["Length"] + BLOCKS[1]["Length"] + BLOCKS[2]["Length"]
+    # print(ind_main)
 
     # Read the X and Y dimensions of the data
-    Xsize = int(struct.unpack("h", E2[ind : ind + 2])[0])
-    Ysize = int(struct.unpack("h", E2[ind + 2 : ind + 4])[0])
+    Xsize = int(struct.unpack("h", E2[ind_main : ind_main + 2])[0])
+    Ysize = int(struct.unpack("h", E2[ind_main + 2 : ind_main + 4])[0])
 
     # Read the number of bytes per data point
-    Nbytes_data = int(struct.unpack("h", E2[ind + 4 : ind + 6])[0])
-    # print(Nbytes_data)
-    pixel_bytes = Nbytes_data
+    Nbytes_data_per_pixel = int(struct.unpack("h", E2[ind_main + 4 : ind_main + 6])[0])
+    # print(Nbytes_data_per_pixel)
 
     # Move the index forward by 6 bytes to the start of the pixel data
-    ind += 6
+    ind_main += 6
 
     # Initialize an array to hold the pixel data
     pixeldata = np.zeros(Xsize * Ysize, dtype=np.float32)
@@ -82,7 +83,13 @@ def read_wyko_opd(filename):
     # Read each pixel's data
     for pid in range(Xsize * Ysize):
         pixeldata[pid] = struct.unpack(
-            "f", E2[ind + (pid * pixel_bytes) : ind + (pid * pixel_bytes) + pixel_bytes]
+            "f",
+            E2[
+                ind_main
+                + (pid * Nbytes_data_per_pixel) : ind_main
+                + (pid * Nbytes_data_per_pixel)
+                + Nbytes_data_per_pixel
+            ],
         )[0]
 
     # Find and replace invalid pixel values with NaN
